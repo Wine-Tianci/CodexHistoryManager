@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codex History Manager</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Local Session Control</p>
+          <h1>Codex History Manager</h1>
+          <p class="subtitle">
+            浏览、检查、重命名并永久删除本机 Codex 历史会话。
+          </p>
+        </div>
+        <div class="hero-actions">
+          <a class="ghost-button button-link" href="./profiles.html">方案管理</a>
+          <button id="refresh-button" class="ghost-button" type="button">
+            刷新
+          </button>
+        </div>
+      </header>
+
+      <section class="toolbar card">
+        <label class="field">
+          <span>搜索</span>
+          <input id="search-input" type="search" placeholder="按标题或会话 ID 搜索" />
+        </label>
+        <label class="field field-compact">
+          <span>来源</span>
+          <select id="source-filter">
+            <option value="all">全部</option>
+            <option value="sessions">sessions</option>
+            <option value="archived_sessions">archived_sessions</option>
+          </select>
+        </label>
+        <div class="selection-meta">
+          <strong id="selection-count">0</strong>
+          <span>已选会话</span>
+        </div>
+        <button id="delete-button" class="danger-button" type="button" disabled>
+          删除所选
+        </button>
+      </section>
+
+      <main class="workspace">
+        <section class="card sessions-panel">
+          <div class="panel-heading">
+            <h2>会话概要</h2>
+            <span id="session-count" class="muted">0 条</span>
+          </div>
+          <div id="table-feedback" class="feedback muted">正在加载会话列表…</div>
+          <div class="table-wrap">
+            <table class="session-table">
+              <colgroup>
+                <col class="session-col-checkbox" />
+                <col class="session-col-source" />
+                <col class="session-col-id" />
+                <col class="session-col-updated" />
+                <col class="session-col-title" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th class="checkbox-column">
+                    <input id="toggle-all" type="checkbox" aria-label="Select all" />
+                  </th>
+                  <th>来源</th>
+                  <th>会话 ID</th>
+                  <th>更新时间</th>
+                  <th>标题</th>
+                </tr>
+              </thead>
+              <tbody id="session-rows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <div
+          id="workspace-divider"
+          class="workspace-divider"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整会话概要和对话摘要宽度"
+          tabindex="0"
+        ></div>
+
+        <section class="card detail-panel">
+          <div class="panel-heading">
+            <div class="detail-heading-copy">
+              <h2 id="detail-title">会话详情</h2>
+              <p id="detail-subtitle" class="muted">选择左侧会话以查看摘要。</p>
+            </div>
+          </div>
+
+          <div class="detail-scroll">
+            <div id="detail-feedback" class="feedback muted">
+              还没有选中的会话。
+            </div>
+
+            <div id="detail-content" class="detail-content hidden">
+              <dl id="detail-meta" class="meta-grid"></dl>
+
+              <section id="summary-panel" class="detail-section">
+                <h3>对话摘要</h3>
+                <div id="timeline-list" class="timeline-list"></div>
+              </section>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="delete-dialog" class="confirm-dialog">
+      <form method="dialog" class="dialog-card">
+        <h2>永久删除会话</h2>
+        <p>
+          这会删除所选会话文件，并同步移除
+          <code>session_index.jsonl</code> 与 <code>history.jsonl</code>
+          中对应记录。该操作不可恢复。
+        </p>
+        <p id="delete-dialog-count" class="muted"></p>
+        <div class="dialog-actions">
+          <button type="button" class="ghost-button" id="cancel-delete-button">
+            取消
+          </button>
+          <button type="button" class="danger-button" id="confirm-delete-button">
+            确认删除
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="./vendor/snarkdown.umd.js"></script>
+    <script src="./app-model.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
