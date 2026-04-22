@@ -289,6 +289,10 @@ pre {
   width: 22%;
 }
 
+.session-col-tokens {
+  width: 130px;
+}
+
 .session-table th,
 .session-table td {
   padding: 11px 10px;
@@ -318,6 +322,11 @@ pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.token-cell {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .session-row {

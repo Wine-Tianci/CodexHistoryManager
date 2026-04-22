@@ -2,11 +2,13 @@
 
 (function bootstrap() {
   const {
+    buildUsageMetaEntries,
     buildSessionIdMetaValueHtml,
     buildTimelineItemHtml,
     buildWorkspaceTrackWidths,
     escapeHtml,
     filterSessions,
+    formatTokenCount,
   } =
     window.CodexHistoryModel;
   const DESKTOP_LAYOUT_QUERY = window.matchMedia("(min-width: 1081px)");
@@ -30,6 +32,7 @@
   };
 
   const elements = collectElements();
+  ensureTokenColumnHeader();
   bindEvents();
   loadSessions();
 
@@ -78,6 +81,19 @@
       DESKTOP_LAYOUT_QUERY.addListener(syncWorkspaceSplit);
     }
     syncWorkspaceSplit();
+  }
+
+  function ensureTokenColumnHeader() {
+    const headerRow = document.querySelector(".session-table thead tr");
+    if (!headerRow || headerRow.querySelector("[data-column='total-tokens']")) {
+      return;
+    }
+
+    const titleHeader = headerRow.lastElementChild;
+    const tokenHeader = document.createElement("th");
+    tokenHeader.setAttribute("data-column", "total-tokens");
+    tokenHeader.textContent = "Total Tokens";
+    headerRow.insertBefore(tokenHeader, titleHeader);
   }
 
   async function loadSessions() {
@@ -156,6 +172,7 @@
     const safeFullTitle = escapeHtml(title);
     const safeSessionId = escapeHtml(session.sessionId);
     const updatedText = formatDate(session.updatedAt);
+    const totalTokens = formatTokenCount(session.usage?.totalTokens);
     const orphanedClass = session.hasDetailFile ? "" : " orphaned";
 
     return `
@@ -168,6 +185,7 @@
         <td><span class="source-pill ${session.source}">${escapeHtml(session.source)}</span></td>
         <td><code>${safeSessionId}</code></td>
         <td>${escapeHtml(updatedText)}</td>
+        <td class="token-cell">${escapeHtml(totalTokens)}</td>
         <td>
           <div class="title-cell">
             ${
@@ -407,6 +425,7 @@
       ["Title", detail.meta?.title || "-"],
       ["Updated", formatDate(detail.meta?.updatedAt || detail.meta?.timestamp)],
       ["CWD", detail.meta?.cwd || "-"],
+      ...buildUsageMetaEntries(detail.usage),
     ];
 
     return entries

@@ -1,11 +1,13 @@
 const assert = require("node:assert/strict");
 
 const {
+  buildUsageMetaEntries,
   buildSessionIdMetaValueHtml,
   buildWorkspaceTrackWidths,
   buildTimelineItemHtml,
   clampWorkspaceSplit,
   filterSessions,
+  formatTokenCount,
   maskApiKey,
   renderMarkdownToHtml,
   sortProfilesForDisplay,
@@ -139,6 +141,42 @@ run("buildSessionIdMetaValueHtml renders a resume action beside the session id",
     new RegExp(`data-resume-session-id="${sessionId}"`),
   );
   assert.match(html, /切换到当前会话/);
+});
+
+run("formatTokenCount adds separators and falls back to dash", () => {
+  assert.equal(formatTokenCount(12561), "12,561");
+  assert.equal(formatTokenCount(0), "0");
+  assert.equal(formatTokenCount(null), "-");
+});
+
+run("buildUsageMetaEntries returns ordered token fields with fallback dashes", () => {
+  assert.deepEqual(
+    buildUsageMetaEntries({
+      totalTokens: 12561,
+      inputTokens: 12193,
+      cachedInputTokens: 9088,
+      outputTokens: 368,
+      reasoningOutputTokens: 144,
+    }),
+    [
+      ["Total Tokens", "12,561"],
+      ["Input Tokens", "12,193"],
+      ["Cached Input", "9,088"],
+      ["Output Tokens", "368"],
+      ["Reasoning Output", "144"],
+    ],
+  );
+
+  assert.deepEqual(
+    buildUsageMetaEntries(null),
+    [
+      ["Total Tokens", "-"],
+      ["Input Tokens", "-"],
+      ["Cached Input", "-"],
+      ["Output Tokens", "-"],
+      ["Reasoning Output", "-"],
+    ],
+  );
 });
 
 run("clampWorkspaceSplit keeps both panes above minimum width", () => {

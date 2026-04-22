@@ -27,6 +27,24 @@
     });
   }
 
+  function formatTokenCount(value) {
+    if (!Number.isFinite(value)) {
+      return "-";
+    }
+
+    return new Intl.NumberFormat("en-US").format(value);
+  }
+
+  function buildUsageMetaEntries(usage) {
+    return [
+      ["Total Tokens", formatTokenCount(usage?.totalTokens)],
+      ["Input Tokens", formatTokenCount(usage?.inputTokens)],
+      ["Cached Input", formatTokenCount(usage?.cachedInputTokens)],
+      ["Output Tokens", formatTokenCount(usage?.outputTokens)],
+      ["Reasoning Output", formatTokenCount(usage?.reasoningOutputTokens)],
+    ];
+  }
+
   function sortProfilesForDisplay(profiles) {
     return [...(profiles || [])].sort((left, right) => {
       if (Boolean(left?.isActive) !== Boolean(right?.isActive)) {
@@ -203,11 +221,13 @@
 
   const api = {
     buildSessionIdMetaValueHtml,
+    buildUsageMetaEntries,
     buildWorkspaceTrackWidths,
     buildTimelineItemHtml,
     clampWorkspaceSplit,
     escapeHtml,
     filterSessions,
+    formatTokenCount,
     maskApiKey,
     renderMarkdownToHtml,
     sortProfilesForDisplay,
