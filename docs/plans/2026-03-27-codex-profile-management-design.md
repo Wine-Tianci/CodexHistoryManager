@@ -32,7 +32,7 @@ Store profiles in a dedicated file under `~/.codex` instead of mixing them into 
 
 Recommended filename:
 
-- `codex-history-manager.profiles.json`
+- `codex-manager.profiles.json`
 
 Why this name:
 

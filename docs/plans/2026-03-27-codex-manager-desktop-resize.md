@@ -1,8 +1,8 @@
-# Codex History Manager Desktop Resize Implementation Plan
+# CodexManager Desktop Resize Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Update the desktop history manager layout so the session summary pane wraps content instead of showing horizontal overflow and the summary/detail split can be resized by dragging a divider.
+**Goal:** Update the desktop CodexManager layout so the session summary pane wraps content instead of showing horizontal overflow and the summary/detail split can be resized by dragging a divider.
 
 **Architecture:** Keep the existing static HTML app, but route split sizing through a small pure helper in `public/app-model.js` so resize math is testable in Node. Use CSS Grid for desktop layout, a dedicated divider element in the DOM, and pointer events in `public/app.js` to set a temporary CSS custom property for the active split width.
 

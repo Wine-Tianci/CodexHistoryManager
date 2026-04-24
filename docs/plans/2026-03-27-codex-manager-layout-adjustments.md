@@ -1,8 +1,8 @@
-# Codex History Manager Layout Adjustments Implementation Plan
+# CodexManager Layout Adjustments Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Update the history manager so the header stays fixed, the list and detail panes scroll independently, the detail view only shows user and assistant summaries, and the raw-record view is removed.
+**Goal:** Update CodexManager so the header stays fixed, the list and detail panes scroll independently, the detail view only shows user and assistant summaries, and the raw-record view is removed.
 
 **Architecture:** Keep the zero-dependency Node server and static front-end. Tighten the layout with CSS and DOM simplification, and change the backend event summarizer so the detail API only emits concise dialogue summaries.
 

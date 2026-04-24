@@ -1,4 +1,4 @@
-# Codex History Manager Summary Markdown Design
+# CodexManager Summary Markdown Design
 
 **Date:** 2026-03-27
 

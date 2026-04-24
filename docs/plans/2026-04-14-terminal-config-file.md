@@ -4,7 +4,7 @@
 
 **Goal:** Load the session-resume terminal path from a manual-edit JSON config file in the project root.
 
-**Architecture:** Add a small config loader in `lib/` that reads `codex-history-manager.config.json` from the repository root and returns normalized tool config. `server.js` will read that config during startup and pass `terminalPath` into the session resume launcher, which keeps its current runtime fallback.
+**Architecture:** Add a small config loader in `lib/` that reads `codex-manager.config.json` from the repository root and returns normalized tool config. `server.js` will read that config during startup and pass `terminalPath` into the session resume launcher, which keeps its current runtime fallback.
 
 **Tech Stack:** Node.js, JSON config file, `node:test`, vanilla project startup scripts.
 
@@ -53,7 +53,7 @@ Expected: PASS already, then startup wiring is implemented against that contract
 
 **Step 3: Write minimal implementation**
 
-Load `codex-history-manager.config.json` from the project root and pass `terminalPath` into `createSessionResumeLauncher`.
+Load `codex-manager.config.json` from the project root and pass `terminalPath` into `createSessionResumeLauncher`.
 
 **Step 4: Run test to verify it still passes**
 
@@ -63,7 +63,7 @@ Expected: PASS.
 ### Task 3: Add the root config file and document manual editing
 
 **Files:**
-- Create: `codex-history-manager.config.json`
+- Create: `codex-manager.config.json`
 - Modify: `README.md`
 
 **Step 1: Write the failing test**

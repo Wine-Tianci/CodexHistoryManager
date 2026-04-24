@@ -11,7 +11,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo Starting Codex History Manager...
+echo Starting CodexManager...
 echo URL: http://localhost:4173
 echo.
 

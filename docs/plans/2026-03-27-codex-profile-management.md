@@ -49,7 +49,7 @@ Expected: PASS
 
 **Step 1: Write the minimal implementation**
 
-- store profiles in `~/.codex/codex-history-manager.profiles.json`
+- store profiles in `~/.codex/codex-manager.profiles.json`
 - expose `listProfiles`, `getProfile`, `createProfile`, `updateProfile`, `deleteProfile`, `activateProfile`
 - compute active profile from live config values
 - preserve unrelated file content during rewrites

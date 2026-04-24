@@ -1,4 +1,4 @@
-# Codex History Manager Desktop Resize Design
+# CodexManager Desktop Resize Design
 
 **Date:** 2026-03-27
 

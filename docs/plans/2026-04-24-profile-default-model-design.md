@@ -14,7 +14,7 @@ Profiles can optionally carry a default Codex model and reasoning effort. Activa
 
 ## Approach
 
-Store the two new fields alongside the existing profile fields in `codex-history-manager.profiles.json`. Use camelCase in the JSON/API (`modelReasoningEffort`) and TOML's native snake_case key (`model_reasoning_effort`) when writing `config.toml`.
+Store the two new fields alongside the existing profile fields in `codex-manager.profiles.json`. Use camelCase in the JSON/API (`modelReasoningEffort`) and TOML's native snake_case key (`model_reasoning_effort`) when writing `config.toml`.
 
 Profile activation continues to update provider, base URL, and API key, then conditionally rewrites top-level model settings only when the selected profile has explicit values. Current config reporting will include the current model and reasoning effort when present so the profile page can show what is active.
 

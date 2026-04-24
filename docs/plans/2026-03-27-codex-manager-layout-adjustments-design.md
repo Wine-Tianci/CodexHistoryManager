@@ -1,8 +1,8 @@
-# Codex History Manager Layout Adjustments Design
+# CodexManager Layout Adjustments Design
 
 **Date:** 2026-03-27
 
-**Goal:** Tighten the history manager layout and simplify the detail view so the page header stays fixed, each pane scrolls independently, and the detail panel only shows concise user and assistant summaries.
+**Goal:** Tighten the CodexManager layout and simplify the detail view so the page header stays fixed, each pane scrolls independently, and the detail panel only shows concise user and assistant summaries.
 
 ## Confirmed Changes
 

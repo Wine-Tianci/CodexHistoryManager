@@ -4,7 +4,7 @@
 
 ## Scope
 
-- Add a root-level config file named `codex-history-manager.config.json`.
+- Add a root-level config file named `codex-manager.config.json`.
 - Support a `terminalPath` field for the session resume launcher.
 - Keep configuration manual-edit only; no UI for editing it.
 

@@ -1,4 +1,4 @@
-# Codex History Manager Design
+# CodexManager Design
 
 **Date:** 2026-03-27
 

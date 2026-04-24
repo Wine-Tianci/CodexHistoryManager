@@ -1,4 +1,4 @@
-# Codex History Manager Implementation Plan
+# CodexManager Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
@@ -34,9 +34,9 @@ import { describe, expect, it } from "vitest";
 import { App } from "./App";
 
 describe("App", () => {
-  it("renders the history manager shell", () => {
+  it("renders the CodexManager shell", () => {
     render(<App />);
-    expect(screen.getByText("Codex History Manager")).toBeInTheDocument();
+    expect(screen.getByText("CodexManager")).toBeInTheDocument();
   });
 });
 ```
@@ -50,7 +50,7 @@ Expected: FAIL because the app and test setup do not exist yet.
 
 - Create the Vite React entrypoint.
 - Export `App` from `src/app/App.tsx`.
-- Render a page heading `Codex History Manager`.
+- Render a page heading `CodexManager`.
 - Add minimal Vitest and Testing Library setup.
 
 **Step 4: Run test to verify it passes**
@@ -64,7 +64,7 @@ If this directory is a git repo:
 
 ```bash
 git add package.json tsconfig.json tsconfig.node.json vite.config.ts vitest.config.ts index.html src
-git commit -m "chore: scaffold codex history manager"
+git commit -m "chore: scaffold codex manager"
 ```
 
 ### Task 2: Define shared session types and parsing helpers
@@ -346,7 +346,7 @@ If this directory is a git repo:
 
 ```bash
 git add src/server/index.ts src/server/app.ts src/server/app.test.ts
-git commit -m "feat: add history manager api"
+git commit -m "feat: add codex manager api"
 ```
 
 ### Task 7: Build the session list UI
