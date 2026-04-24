@@ -85,3 +85,12 @@ Example:
   "terminalPath": "C:\\Users\\<current-user>\\AppData\\Local\\Microsoft\\WindowsApps\\wt.exe"
 }
 ```
+
+## 方案默认模型
+
+方案记录还可以包含可选的默认模型设置：
+
+- `model`：切换到该方案时，写入 `config.toml` 顶层的 `model = "<value>"`。
+- `modelReasoningEffort`：切换到该方案时，写入 `config.toml` 顶层的 `model_reasoning_effort = "<value>"`。
+
+如果某个字段留空，切换方案时会保留当前 `config.toml` 中对应设置的原值。例如，可以把某个方案的 `model` 设置为 `gpt-5.5`，把 `modelReasoningEffort` 设置为 `high`，这样切换到该方案时也会把 Codex 切换为 `model = "gpt-5.5"` 和 `model_reasoning_effort = "high"`。

@@ -1,6 +1,8 @@
 const assert = require("node:assert/strict");
 
 const {
+  buildCurrentConfigMetaEntries,
+  buildProfileMetaEntries,
   buildUsageMetaEntries,
   buildSessionIdMetaValueHtml,
   buildWorkspaceTrackWidths,
@@ -230,6 +232,44 @@ run("sortProfilesForDisplay keeps the active profile first and sorts the rest by
   );
 });
 
+run("buildProfileMetaEntries includes optional default model settings", () => {
+  assert.deepEqual(
+    buildProfileMetaEntries({
+      provider: "Custom",
+      baseUrl: "https://api.example.com",
+      apiKey: "sk-1234567890abcdef",
+      model: "gpt-5.5",
+      modelReasoningEffort: "high",
+    }),
+    [
+      ["Provider", "Custom"],
+      ["Base URL", "https://api.example.com"],
+      ["API Key", "sk-12...cdef"],
+      ["Model", "gpt-5.5"],
+      ["Reasoning Effort", "high"],
+    ],
+  );
+});
+
+run("buildCurrentConfigMetaEntries includes missing model settings as dashes", () => {
+  assert.deepEqual(
+    buildCurrentConfigMetaEntries({
+      provider: "Custom",
+      baseUrl: "https://api.example.com",
+      apiKey: "sk-1234567890abcdef",
+      model: "",
+      modelReasoningEffort: "",
+    }),
+    [
+      ["Provider", "Custom"],
+      ["Base URL", "https://api.example.com"],
+      ["API Key", "sk-12...cdef"],
+      ["Model", "-"],
+      ["Reasoning Effort", "-"],
+    ],
+  );
+});
+
 run("validateProfileDraft returns field errors for blank values", () => {
   assert.deepEqual(
     validateProfileDraft({
@@ -244,5 +284,19 @@ run("validateProfileDraft returns field errors for blank values", () => {
       apiKey: "密钥不能为空。",
       baseUrl: "Base URL 不能为空。",
     },
+  );
+});
+
+run("validateProfileDraft allows blank default model settings", () => {
+  assert.deepEqual(
+    validateProfileDraft({
+      name: "Work",
+      provider: "Custom",
+      apiKey: "sk-work",
+      baseUrl: "https://api.example.com",
+      model: "",
+      modelReasoningEffort: "",
+    }),
+    {},
   );
 });

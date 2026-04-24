@@ -65,6 +65,26 @@
     return `${text.slice(0, 5)}...${text.slice(-4)}`;
   }
 
+  function buildProfileMetaEntries(profile) {
+    return [
+      ["Provider", profile?.provider || "Custom"],
+      ["Base URL", profile?.baseUrl || "-"],
+      ["API Key", maskApiKey(profile?.apiKey || "")],
+      ["Model", profile?.model || "-"],
+      ["Reasoning Effort", profile?.modelReasoningEffort || "-"],
+    ];
+  }
+
+  function buildCurrentConfigMetaEntries(currentConfig) {
+    return [
+      ["Provider", currentConfig?.provider || "-"],
+      ["Base URL", currentConfig?.baseUrl || "-"],
+      ["API Key", maskApiKey(currentConfig?.apiKey || "")],
+      ["Model", currentConfig?.model || "-"],
+      ["Reasoning Effort", currentConfig?.modelReasoningEffort || "-"],
+    ];
+  }
+
   function validateProfileDraft(draft) {
     const errors = {};
     if (!String(draft?.name || "").trim()) {
@@ -220,6 +240,8 @@
   }
 
   const api = {
+    buildCurrentConfigMetaEntries,
+    buildProfileMetaEntries,
     buildSessionIdMetaValueHtml,
     buildUsageMetaEntries,
     buildWorkspaceTrackWidths,

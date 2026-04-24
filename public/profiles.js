@@ -2,8 +2,9 @@
 
 (function bootstrapProfiles() {
   const {
+    buildCurrentConfigMetaEntries,
+    buildProfileMetaEntries,
     escapeHtml,
-    maskApiKey,
     sortProfilesForDisplay,
     validateProfileDraft,
   } = window.CodexHistoryModel;
@@ -46,6 +47,10 @@
       providerInput: document.getElementById("profile-provider-input"),
       apiKeyInput: document.getElementById("profile-api-key-input"),
       baseUrlInput: document.getElementById("profile-base-url-input"),
+      modelInput: document.getElementById("profile-model-input"),
+      modelReasoningEffortInput: document.getElementById(
+        "profile-model-reasoning-effort-input",
+      ),
       nameError: document.getElementById("profile-name-error"),
       providerError: document.getElementById("profile-provider-error"),
       apiKeyError: document.getElementById("profile-api-key-error"),
@@ -73,6 +78,8 @@
     elements.providerInput.addEventListener("input", handleDraftChange);
     elements.apiKeyInput.addEventListener("input", handleDraftChange);
     elements.baseUrlInput.addEventListener("input", handleDraftChange);
+    elements.modelInput.addEventListener("input", handleDraftChange);
+    elements.modelReasoningEffortInput.addEventListener("input", handleDraftChange);
   }
 
   async function loadProfiles(nextSelectedId) {
@@ -119,6 +126,8 @@
         provider: detail.provider || "Custom",
         apiKey: detail.apiKey || "",
         baseUrl: detail.baseUrl || "",
+        model: detail.model || "",
+        modelReasoningEffort: detail.modelReasoningEffort || "",
       };
       state.formErrors = {};
     } catch (error) {
@@ -146,6 +155,8 @@
       provider: elements.providerInput.value,
       apiKey: elements.apiKeyInput.value,
       baseUrl: elements.baseUrlInput.value,
+      model: elements.modelInput.value,
+      modelReasoningEffort: elements.modelReasoningEffortInput.value,
     };
     state.formErrors = {};
     renderForm();
@@ -262,11 +273,7 @@
       elements.statusText.textContent = "当前尚未检测到可识别的生效配置。";
     }
 
-    elements.currentConfig.innerHTML = [
-      ["Provider", state.currentConfig.provider || "-"],
-      ["Base URL", state.currentConfig.baseUrl || "-"],
-      ["API Key", maskApiKey(state.currentConfig.apiKey || "")],
-    ]
+    elements.currentConfig.innerHTML = buildCurrentConfigMetaEntries(state.currentConfig)
       .map(
         ([key, value]) =>
           `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value || "-"))}</dd>`,
@@ -312,9 +319,9 @@
           <strong>${escapeHtml(profile.name)}</strong>
           ${profile.isActive ? '<span class="status-badge">在用</span>' : ""}
         </div>
-        ${renderProfileMetaLine("Provider", profile.provider || "Custom")}
-        ${renderProfileMetaLine("Base URL", profile.baseUrl)}
-        ${renderProfileMetaLine("API Key", maskApiKey(profile.apiKey))}
+        ${buildProfileMetaEntries(profile)
+          .map(([label, value]) => renderProfileMetaLine(label, value))
+          .join("")}
       </button>
     `;
   }
@@ -338,6 +345,8 @@
     elements.providerInput.value = state.draft.provider;
     elements.apiKeyInput.value = state.draft.apiKey;
     elements.baseUrlInput.value = state.draft.baseUrl;
+    elements.modelInput.value = state.draft.model;
+    elements.modelReasoningEffortInput.value = state.draft.modelReasoningEffort;
 
     setFieldError(elements.nameError, state.formErrors.name);
     setFieldError(elements.providerError, state.formErrors.provider);
@@ -366,7 +375,10 @@
       state.draft.name !== state.selectedProfile.name ||
       state.draft.provider !== (state.selectedProfile.provider || "Custom") ||
       state.draft.apiKey !== state.selectedProfile.apiKey ||
-      state.draft.baseUrl !== state.selectedProfile.baseUrl
+      state.draft.baseUrl !== state.selectedProfile.baseUrl ||
+      state.draft.model !== (state.selectedProfile.model || "") ||
+      state.draft.modelReasoningEffort !==
+        (state.selectedProfile.modelReasoningEffort || "")
     );
   }
 
@@ -376,6 +388,8 @@
       provider: "Custom",
       apiKey: "",
       baseUrl: "",
+      model: "",
+      modelReasoningEffort: "",
     };
   }
 
