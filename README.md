@@ -34,12 +34,6 @@ http://localhost:4173
 
 会话管理页面用于浏览、检查、重命名、恢复和删除本机 Codex 会话。
 
-入口：
-
-```text
-/
-```
-
 主要功能：
 
 - 列出会话概要，包括来源、会话 ID、更新时间、token 用量和标题。
@@ -65,12 +59,6 @@ http://localhost:4173
 ## Codex Profile Manager
 
 方案管理页面用于保存多个 Codex 接口方案，查看当前生效配置，并一键切换到指定方案。
-
-入口：
-
-```text
-/profiles.html
-```
 
 主要功能：
 
