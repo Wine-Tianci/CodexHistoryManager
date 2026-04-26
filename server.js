@@ -5,6 +5,7 @@ const { SessionStore } = require("./lib/session-store.js");
 const { ProfileStore } = require("./lib/profile-store.js");
 const { createRequestHandler } = require("./lib/request-handler.js");
 const { createSessionResumeLauncher } = require("./lib/session-resume-launcher.js");
+const { createBrowserLauncher } = require("./lib/browser-launcher.js");
 
 const PUBLIC_DIR = path.join(__dirname, "public");
 const APP_CONFIG_PATH = path.join(__dirname, "codex-manager.config.json");
@@ -27,6 +28,7 @@ async function bootstrap() {
   const resumeLauncher = createSessionResumeLauncher({
     windowsTerminalPath: appConfig.terminalPath || undefined,
   });
+  const openBrowser = createBrowserLauncher();
   const server = http.createServer(
     createRequestHandler({
       sessionStore,
@@ -37,6 +39,14 @@ async function bootstrap() {
   );
 
   server.listen(PORT, () => {
-    console.log(`CodexManager backend listening on http://localhost:${PORT}`);
+    const address = server.address();
+    const url =
+      address && typeof address === "object"
+        ? `http://localhost:${address.port}`
+        : `http://localhost:${PORT}`;
+    console.log(`CodexManager backend listening on ${url}`);
+    openBrowser(url).catch((error) => {
+      console.warn(`Failed to open browser: ${error.message || error}`);
+    });
   });
 }
