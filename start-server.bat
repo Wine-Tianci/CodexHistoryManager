@@ -11,8 +11,8 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo Starting CodexManager...
-echo URL: http://localhost:4173
+echo Starting AI Agent Deck...
+echo The server will print the actual URL after startup.
 echo.
 
 node server.js

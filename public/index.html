@@ -3,38 +3,36 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Codex History Manager</title>
+    <title>历史管理</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="app-shell">
       <header class="hero">
         <div>
-          <p class="eyebrow">Local Session Control</p>
-          <h1>Codex History Manager</h1>
+          <p class="eyebrow">本机会话管理</p>
+          <h1>历史管理</h1>
           <p class="subtitle">
-            浏览、检查、重命名并永久删除本机 Codex 历史会话。
+            在同一个页面查看、搜索、删除和检查 Codex 与 Claude 的历史会话。
           </p>
         </div>
         <div class="hero-actions">
+          <a class="ghost-button button-link active" href="./index.html">历史管理</a>
           <a class="ghost-button button-link" href="./profiles.html">方案管理</a>
-          <button id="refresh-button" class="ghost-button" type="button">
-            刷新
-          </button>
+          <button id="refresh-button" class="ghost-button" type="button">刷新</button>
         </div>
       </header>
 
       <section class="toolbar card">
         <label class="field">
           <span>搜索</span>
-          <input id="search-input" type="search" placeholder="按标题或会话 ID 搜索" />
+          <input id="search-input" type="search" placeholder="按标题、会话 ID 或项目搜索" />
         </label>
         <label class="field field-compact">
-          <span>来源</span>
-          <select id="source-filter">
-            <option value="all">全部</option>
-            <option value="sessions">sessions</option>
-            <option value="archived_sessions">archived_sessions</option>
+          <span>AI 类型</span>
+          <select id="ai-type-select">
+            <option value="codex">Codex</option>
+            <option value="claude">Claude</option>
           </select>
         </label>
         <div class="selection-meta">
@@ -49,10 +47,10 @@
       <main class="workspace">
         <section class="card sessions-panel">
           <div class="panel-heading">
-            <h2>会话概要</h2>
+            <h2>会话概览</h2>
             <span id="session-count" class="muted">0 条</span>
           </div>
-          <div id="table-feedback" class="feedback muted">正在加载会话列表…</div>
+          <div id="table-feedback" class="feedback muted">正在加载会话列表...</div>
           <div class="table-wrap">
             <table class="session-table">
               <colgroup>
@@ -66,11 +64,12 @@
               <thead>
                 <tr>
                   <th class="checkbox-column">
-                    <input id="toggle-all" type="checkbox" aria-label="Select all" />
+                    <input id="toggle-all" type="checkbox" aria-label="全选可见会话" />
                   </th>
-                  <th>来源</th>
+                  <th>AI 类型</th>
                   <th>会话 ID</th>
                   <th>更新时间</th>
+                  <th data-column="total-tokens">Token</th>
                   <th>标题</th>
                 </tr>
               </thead>
@@ -84,7 +83,7 @@
           class="workspace-divider"
           role="separator"
           aria-orientation="vertical"
-          aria-label="调整会话概要和对话摘要宽度"
+          aria-label="调整会话概览和会话详情宽度"
           tabindex="0"
         ></div>
 
@@ -92,13 +91,13 @@
           <div class="panel-heading">
             <div class="detail-heading-copy">
               <h2 id="detail-title">会话详情</h2>
-              <p id="detail-subtitle" class="muted">选择左侧会话以查看摘要。</p>
+              <p id="detail-subtitle" class="muted">选择左侧会话以查看详情。</p>
             </div>
           </div>
 
           <div class="detail-scroll">
             <div id="detail-feedback" class="feedback muted">
-              还没有选中的会话。
+              请选择一个会话。
             </div>
 
             <div id="detail-content" class="detail-content hidden">
@@ -118,15 +117,11 @@
       <form method="dialog" class="dialog-card">
         <h2>永久删除会话</h2>
         <p>
-          这会删除所选会话文件，并同步移除
-          <code>session_index.jsonl</code> 与 <code>history.jsonl</code>
-          中对应记录。该操作不可恢复。
+          这会删除当前 AI 类型下所选的会话文件。该操作不可恢复。
         </p>
         <p id="delete-dialog-count" class="muted"></p>
         <div class="dialog-actions">
-          <button type="button" class="ghost-button" id="cancel-delete-button">
-            取消
-          </button>
+          <button type="button" class="ghost-button" id="cancel-delete-button">取消</button>
           <button type="button" class="danger-button" id="confirm-delete-button">
             确认删除
           </button>

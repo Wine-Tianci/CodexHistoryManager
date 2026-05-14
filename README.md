@@ -1,9 +1,14 @@
-# CodexManager
+# AI Agent Deck
 
-CodexManager 是一个零依赖的本地网页工具，用来管理当前 Windows 用户目录下的 Codex 本地数据。项目包含两个独立但互相关联的页面：
+AI Agent Deck 是一个零依赖的本地网页工具，用来管理当前 Windows 用户目录下的 Codex 与 Claude Code 本地数据。
 
-- `Codex History Manager`：管理 Codex 会话历史。
-- `Codex Profile Manager`：管理 Codex 接口方案和当前生效配置。
+工具现在只有两个主要页面：
+
+- `历史管理`：在同一个页面查看 Codex 与 Claude 会话历史，通过页面内的 `AI 类型` 下拉框切换。
+- `方案管理`：在同一个页面管理 Codex 与 Claude 接口方案，通过页面内的 `AI 类型` 下拉框切换。
+
+后端 API 仍然保持分离：Codex 使用 `/api/...`，Claude 使用 `/api/claude/...`。这样可以统一前端体验，同时降低后端迁移风险。
+两个页面会分别记住上一次选择的 `AI 类型`：历史管理和方案管理互不影响，刷新页面或来回跳转后会恢复各自最近一次的选择。
 
 ## 启动
 
@@ -19,62 +24,68 @@ Windows 也可以直接双击根目录脚本：
 start-server.bat
 ```
 
-默认监听：
+默认优先监听：
 
 ```text
 http://localhost:4173
 ```
 
+如果 `4173` 已被占用，服务会自动尝试后续端口，并在命令行打印实际 URL。
+
 页面入口：
 
-- `Codex History Manager`：`http://localhost:4173/`
-- `Codex Profile Manager`：`http://localhost:4173/profiles.html`
+- 历史管理：`http://localhost:4173/`
+- 方案管理：`http://localhost:4173/profiles.html`
 
-## Codex History Manager
+旧入口 `claude.html` 与 `claude-profiles.html` 会跳转到统一页面，作为兼容入口保留。
 
-会话管理页面用于浏览、检查、重命名、恢复和删除本机 Codex 会话。
+## 历史管理
 
-主要功能：
-
-- 列出会话概要，包括来源、会话 ID、更新时间、token 用量和标题。
-- 查看会话详情，包括摘要时间线、会话元信息和原始记录整理后的内容。
-- 重命名会话标题，并同步写回 `session_index.jsonl`。
-- 多选永久删除会话文件，并同步清理 `session_index.jsonl` 与 `history.jsonl`。
-- 从会话详情中启动 `codex resume <session_id>`，快速切换到当前会话。
-- 在页面右上角通过 `方案管理` 进入 `Codex Profile Manager`。
-
-使用的数据：
-
-- `C:\Users\<当前用户>\.codex\session_index.jsonl`
-- `C:\Users\<当前用户>\.codex\history.jsonl`
-- `C:\Users\<当前用户>\.codex\sessions\**\*.jsonl`
-- `C:\Users\<当前用户>\.codex\archived_sessions\*.jsonl`
-
-会话相关注意事项：
-
-- 删除是永久删除，不会移入回收站。
-- 如果某条索引记录存在但详情文件缺失，页面会把它显示成孤儿会话。
-- 启动会话恢复功能时，后端会调用 Windows Terminal 或配置的终端路径打开新会话。
-
-## Codex Profile Manager
-
-方案管理页面用于保存多个 Codex 接口方案，查看当前生效配置，并一键切换到指定方案。
+历史管理页用于浏览、检查和删除本机历史会话。
 
 主要功能：
 
-- 查看当前本机 Codex 配置，包括 provider、base URL、API key、model 和 reasoning effort。
-- 新增、编辑、删除已保存的接口方案。
-- 将某个方案切换为当前生效方案。
-- 支持为方案保存可选默认模型设置。
-- 在页面右上角通过 `会话管理` 返回 `Codex History Manager`。
+- 通过 `AI 类型` 在 `Codex` 与 `Claude` 之间切换。
+- Codex 模式读取 `/api/sessions`，Claude 模式读取 `/api/claude/sessions`。
+- 搜索会话标题、会话 ID、项目或模型信息。
+- 每一行都会显示清晰的 `Codex` 或 `Claude` 标签。
+- 切换 AI 类型时会清空当前选中项和详情，避免跨类型误操作。
+- 历史管理会在浏览器本地记住上一次选择的 AI 类型，使用 `localStorage` key `ai-agent-deck.history.aiType`。
+- Codex 模式保留重命名和 `codex resume <session_id>` 切换会话能力。
+- Claude 模式提供查看、删除和 `claude --resume <session_id>` 切换会话能力。
 
-方案文件：
+Codex 会话涉及的数据：
 
 ```text
-C:\Users\<当前用户>\.codex\codex-manager.profiles.json
+C:\Users\<当前用户>\.codex\session_index.jsonl
+C:\Users\<当前用户>\.codex\history.jsonl
+C:\Users\<当前用户>\.codex\sessions\**\*.jsonl
+C:\Users\<当前用户>\.codex\archived_sessions\*.jsonl
 ```
 
-方案文件只保存本工具自己的多方案配置，不覆盖 Codex 官方结构。每个方案包含：
+Claude 会话涉及的数据：
+
+```text
+C:\Users\<当前用户>\.claude\history.jsonl
+C:\Users\<当前用户>\.claude\projects\**\*.jsonl
+```
+
+## 方案管理
+
+方案管理页用于保存多个接口方案，查看当前生效配置，并一键切换到指定方案。
+
+主要功能：
+
+- 通过 `AI 类型` 在 `Codex` 与 `Claude` 之间切换。
+- Codex 模式使用 `/api/profiles`。
+- Claude 模式使用 `/api/claude/profiles`。
+- 方案卡片和当前配置摘要会隐藏密钥中间部分。
+- 切换 AI 类型时会重新加载对应类型的方案列表、当前配置和表单字段。
+- 方案管理会在浏览器本地记住上一次选择的 AI 类型，使用 `localStorage` key `ai-agent-deck.profiles.aiType`。
+
+### Codex 方案字段
+
+Codex 方案保存这些字段：
 
 - `name`
 - `provider`
@@ -83,33 +94,58 @@ C:\Users\<当前用户>\.codex\codex-manager.profiles.json
 - `model`
 - `modelReasoningEffort`
 
-切换方案时会实际改写：
+Codex 方案文件：
 
-- `config.toml` 顶层的 `model_provider`
-- `config.toml` 顶层的 `model`
-- `config.toml` 顶层的 `model_reasoning_effort`
+```text
+C:\Users\<当前用户>\.codex\ai-agent-deck.profiles.json
+```
+
+切换 Codex 方案时会改写：
+
+- `config.toml` 顶层 `model_provider`
+- `config.toml` 顶层 `model`
+- `config.toml` 顶层 `model_reasoning_effort`
 - `config.toml` 中目标 provider 的 `base_url`
 - `auth.json` 中的 `OPENAI_API_KEY`
 
-如果某个方案的 `model` 或 `modelReasoningEffort` 留空，切换方案时会保留当前 `config.toml` 中对应设置的原值。例如，可以把某个方案的 `model` 设置为 `gpt-5.5`，把 `modelReasoningEffort` 设置为 `high`，这样切换到该方案时也会把 Codex 切换为：
+如果某个方案的 `model` 或 `modelReasoningEffort` 留空，切换方案时会保留当前 `config.toml` 中对应设置的原值。
 
-```toml
-model = "gpt-5.5"
-model_reasoning_effort = "high"
+### Claude 方案字段
+
+Claude 方案保存业务字段，而不是直接暴露原始环境变量编辑器：
+
+- `name`
+- `baseUrl`
+- `apiKey`
+- `defaultModel`
+
+Claude 方案文件：
+
+```text
+C:\Users\<当前用户>\.claude\ai-agent-deck.profiles.json
 ```
 
-方案相关注意事项：
+切换 Claude 方案时会改写 `.claude\settings.json` 中这些受管理字段：
 
-- 删除方案只会删除保存记录，不会自动回滚当前已经生效的 Codex 配置。
-- API key 会写入 `auth.json` 的 `OPENAI_API_KEY` 字段。
-- `codex-manager.profiles.json` 是本工具自己的数据文件，和 Codex 官方配置文件分开保存。
+- `baseUrl` -> `env.ANTHROPIC_BEDROCK_BASE_URL`
+- `apiKey` -> `env.ANTHROPIC_AUTH_TOKEN`
+- `defaultModel` -> `env.ANTHROPIC_MODEL`
+
+同时会根据 `defaultModel` 自动同步顶层 `model` 短别名：
+
+- 包含 `haiku` 时写入 `haiku`
+- 包含 `sonnet` 时写入 `sonnet`
+- 包含 `opus` 时写入 `opus`
+- 否则保留已有顶层 `model`，没有已有值时使用完整模型字符串
+
+Claude 方案激活会保留 `.claude\settings.json` 中不属于本工具管理的其他顶层字段和其他 `env` 字段，例如 hooks、permissions、plugins、`AWS_REGION` 等。
 
 ## 配置文件
 
-CodexManager 自己的根配置文件：
+AI Agent Deck 自己的根配置文件：
 
 ```text
-D:\soft\CodexManager\codex-manager.config.json
+D:\soft\AIAgentDeck\ai-agent-deck.config.json
 ```
 
 当前支持字段：
@@ -124,25 +160,20 @@ D:\soft\CodexManager\codex-manager.config.json
 }
 ```
 
-如果 `codex-manager.config.json` 不存在，工具会使用内置默认值。为了兼容旧版本，程序仍会尝试读取旧文件名 `codex-history-manager.config.json`。
+如果 `ai-agent-deck.config.json` 不存在，工具会使用内置默认值。
 
-## 数据目录
+## 环境变量
 
-默认读取当前 Windows 用户目录下的 Codex 数据：
+- `PORT`：覆盖默认端口。
+- `CODEX_ROOT`：覆盖默认 Codex 数据目录。
+- `CLAUDE_ROOT`：覆盖默认 Claude 数据目录。
+
+默认目录：
 
 ```text
 C:\Users\<当前用户>\.codex
+C:\Users\<当前用户>\.claude
 ```
-
-主要涉及文件：
-
-- `config.toml`
-- `auth.json`
-- `session_index.jsonl`
-- `history.jsonl`
-- `sessions\**\*.jsonl`
-- `archived_sessions\*.jsonl`
-- `codex-manager.profiles.json`
 
 ## 停止服务
 
@@ -161,5 +192,7 @@ Stop-Process -Id <PID> -Force
 ## 运行说明
 
 - 后端和前端都不依赖第三方 npm 包，适合无网络环境直接运行。
-- 默认端口是 `4173`，也可以通过环境变量 `PORT` 覆盖。
-- 默认 Codex 数据目录是当前用户的 `.codex`，也可以通过环境变量 `CODEX_ROOT` 覆盖。
+- 删除会话是永久删除，不会移入回收站。
+- 删除方案只会删除保存记录，不会自动回滚当前已经生效的配置。
+- Codex 和 Claude 的数据目录彼此独立，统一页面只改变前端入口和交互方式。
+- 页面选择记忆只保存在当前浏览器的 `localStorage` 中，不会写入 Codex、Claude 或 AI Agent Deck 的后端配置文件。

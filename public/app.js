@@ -1,20 +1,27 @@
 "use strict";
 
-(function bootstrap() {
+(function bootstrapHistory() {
   const {
-    buildUsageMetaEntries,
+    buildAiSourceLabel,
+    AI_TYPE_STORAGE_KEYS,
+    buildHistoryApiPaths,
     buildSessionIdMetaValueHtml,
     buildTimelineItemHtml,
+    buildUsageMetaEntries,
     buildWorkspaceTrackWidths,
     escapeHtml,
-    filterSessions,
+    filterUnifiedSessions,
     formatTokenCount,
-  } =
-    window.CodexHistoryModel;
+    readStoredAiType,
+    resetHistoryStateForAiType,
+    writeStoredAiType,
+  } = window.AIAgentDeckModel;
+
   const DESKTOP_LAYOUT_QUERY = window.matchMedia("(min-width: 1081px)");
   const MIN_WORKSPACE_PANE_WIDTH = 320;
 
-  const state = {
+  let state = {
+    aiType: readStoredAiType(window.localStorage, AI_TYPE_STORAGE_KEYS.history),
     sessions: [],
     filteredSessions: [],
     selectedIds: new Set(),
@@ -22,24 +29,24 @@
     activeDetail: null,
     loadingList: false,
     loadingDetail: false,
-    savingTitleId: null,
-    editingTitleId: null,
-    editingTitleValue: "",
     deleting: false,
     listError: "",
+    editingTitleId: null,
+    editingTitleValue: "",
     workspaceLeftWidth: null,
     activeResizeSession: null,
   };
 
   const elements = collectElements();
-  ensureTokenColumnHeader();
   bindEvents();
+  syncModeControls();
+  clearDetail("请选择一个会话。");
   loadSessions();
 
   function collectElements() {
     return {
+      aiTypeSelect: document.getElementById("ai-type-select"),
       searchInput: document.getElementById("search-input"),
-      sourceFilter: document.getElementById("source-filter"),
       refreshButton: document.getElementById("refresh-button"),
       workspace: document.querySelector(".workspace"),
       workspaceDivider: document.getElementById("workspace-divider"),
@@ -55,7 +62,6 @@
       detailContent: document.getElementById("detail-content"),
       detailMeta: document.getElementById("detail-meta"),
       timelineList: document.getElementById("timeline-list"),
-      summaryPanel: document.getElementById("summary-panel"),
       deleteDialog: document.getElementById("delete-dialog"),
       deleteDialogCount: document.getElementById("delete-dialog-count"),
       cancelDeleteButton: document.getElementById("cancel-delete-button"),
@@ -64,8 +70,8 @@
   }
 
   function bindEvents() {
+    elements.aiTypeSelect.addEventListener("change", changeAiType);
     elements.searchInput.addEventListener("input", renderSessions);
-    elements.sourceFilter.addEventListener("change", renderSessions);
     elements.refreshButton.addEventListener("click", loadSessions);
     elements.toggleAll.addEventListener("change", toggleAllVisible);
     elements.deleteButton.addEventListener("click", openDeleteDialog);
@@ -83,27 +89,35 @@
     syncWorkspaceSplit();
   }
 
-  function ensureTokenColumnHeader() {
-    const headerRow = document.querySelector(".session-table thead tr");
-    if (!headerRow || headerRow.querySelector("[data-column='total-tokens']")) {
-      return;
-    }
+  function changeAiType() {
+    const nextAiType = elements.aiTypeSelect.value;
+    writeStoredAiType(window.localStorage, AI_TYPE_STORAGE_KEYS.history, nextAiType);
+    state = resetHistoryStateForAiType(state, nextAiType);
+    state.listError = "";
+    state.editingTitleId = null;
+    state.editingTitleValue = "";
+    syncModeControls();
+    clearDetail(`已切换到 ${buildAiSourceLabel(state.aiType)}，请选择一个会话。`);
+    loadSessions();
+  }
 
-    const titleHeader = headerRow.lastElementChild;
-    const tokenHeader = document.createElement("th");
-    tokenHeader.setAttribute("data-column", "total-tokens");
-    tokenHeader.textContent = "Total Tokens";
-    headerRow.insertBefore(tokenHeader, titleHeader);
+  function syncModeControls() {
+    elements.aiTypeSelect.value = state.aiType;
   }
 
   async function loadSessions() {
+    const paths = buildHistoryApiPaths(state.aiType);
     state.loadingList = true;
     state.listError = "";
-    elements.tableFeedback.textContent = "正在加载会话列表…";
+    elements.tableFeedback.textContent = "正在加载会话列表...";
     renderSessions();
     try {
-      const payload = await api("/api/sessions");
-      state.sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+      const payload = await api(paths.list);
+      state.sessions = (Array.isArray(payload.sessions) ? payload.sessions : []).map((session) => ({
+        ...session,
+        aiType: state.aiType,
+        source: session.source || state.aiType,
+      }));
       state.selectedIds = new Set(
         [...state.selectedIds].filter((sessionId) =>
           state.sessions.some((session) => session.sessionId === sessionId),
@@ -113,7 +127,7 @@
         state.activeSessionId &&
         !state.sessions.some((session) => session.sessionId === state.activeSessionId)
       ) {
-        clearDetail("当前会话已不存在。");
+        clearDetail("当前会话已经不存在。");
       }
       renderSessions();
       if (state.activeSessionId) {
@@ -130,13 +144,14 @@
 
   function getFilters() {
     return {
+      aiType: state.aiType,
       search: elements.searchInput.value,
-      source: elements.sourceFilter.value,
+      source: "all",
     };
   }
 
   function renderSessions() {
-    state.filteredSessions = filterSessions(state.sessions, getFilters());
+    state.filteredSessions = filterUnifiedSessions(state.sessions, getFilters());
     elements.sessionCount.textContent = `${state.filteredSessions.length} 条`;
     elements.selectionCount.textContent = String(state.selectedIds.size);
     elements.deleteButton.disabled = state.selectedIds.size === 0 || state.deleting;
@@ -147,16 +162,16 @@
       state.filteredSessions.some((session) => state.selectedIds.has(session.sessionId)) &&
       !elements.toggleAll.checked;
 
-    const rowsMarkup = state.filteredSessions
-      .map((session) => renderSessionRow(session))
-      .join("");
-
-    elements.sessionRows.innerHTML = rowsMarkup;
+    elements.sessionRows.innerHTML = state.filteredSessions.map(renderSessionRow).join("");
     if (state.listError) {
       elements.tableFeedback.textContent = state.listError;
-    } else if (!state.loadingList) {
+    } else if (state.loadingList) {
+      elements.tableFeedback.textContent = "正在加载会话列表...";
+    } else {
       elements.tableFeedback.textContent = state.filteredSessions.length
-        ? "双击标题可直接重命名，勾选后可批量永久删除。"
+        ? state.aiType === "codex"
+          ? "点击会话查看详情；双击标题可重命名 Codex 会话。"
+          : "点击会话查看 Claude 对话摘要。"
         : "没有匹配的会话。";
     }
 
@@ -166,50 +181,45 @@
   function renderSessionRow(session) {
     const isSelected = state.activeSessionId === session.sessionId;
     const isChecked = state.selectedIds.has(session.sessionId);
-    const isEditing = state.editingTitleId === session.sessionId;
-    const title = session.title || "Untitled Session";
-    const safeTitle = escapeHtml(truncateTitle(title, 40));
-    const safeFullTitle = escapeHtml(title);
+    const isEditing = state.aiType === "codex" && state.editingTitleId === session.sessionId;
+    const title = session.title || "未命名会话";
     const safeSessionId = escapeHtml(session.sessionId);
-    const updatedText = formatDate(session.updatedAt);
     const totalTokens = formatTokenCount(session.usage?.totalTokens);
-    const orphanedClass = session.hasDetailFile ? "" : " orphaned";
+    const rowNote =
+      state.aiType === "codex"
+        ? session.hasDetailFile
+          ? "可查看详情"
+          : "缺少详情文件"
+        : escapeHtml(session.project || session.model || "-");
+    const sourceClass = state.aiType === "claude" ? "claude" : "codex";
 
     return `
-      <tr class="session-row${isSelected ? " selected" : ""}${orphanedClass}" data-session-id="${safeSessionId}">
+      <tr class="session-row${isSelected ? " selected" : ""}" data-session-id="${safeSessionId}">
         <td>
           <input class="row-checkbox" type="checkbox" data-checkbox-id="${safeSessionId}" ${
             isChecked ? "checked" : ""
           } />
         </td>
-        <td><span class="source-pill ${session.source}">${escapeHtml(session.source)}</span></td>
+        <td><span class="source-pill ${escapeHtml(sourceClass)}">${escapeHtml(buildAiSourceLabel(state.aiType))}</span></td>
         <td><code>${safeSessionId}</code></td>
-        <td>${escapeHtml(updatedText)}</td>
+        <td>${escapeHtml(formatDate(session.updatedAt))}</td>
         <td class="token-cell">${escapeHtml(totalTokens)}</td>
         <td>
           <div class="title-cell">
             ${
               isEditing
                 ? `
-                <div class="rename-row">
                   <input class="rename-input" data-rename-input-id="${safeSessionId}" value="${escapeHtml(
                     state.editingTitleValue,
                   )}" />
-                </div>
-                <div class="inline-note">Enter 保存，Esc 取消</div>
-              `
+                  <div class="inline-note">按 Enter 保存，按 Esc 取消</div>
+                `
                 : `
-                <button
-                  class="title-button"
-                  type="button"
-                  data-open-id="${safeSessionId}"
-                  data-edit-id="${safeSessionId}"
-                  title="${safeFullTitle}"
-                >
-                  ${safeTitle}
-                </button>
-                <div class="inline-note">${session.hasDetailFile ? "可查看详情" : "缺少详情文件，可仅清理索引"}</div>
-              `
+                  <button class="title-button" type="button" data-open-id="${safeSessionId}" data-edit-id="${safeSessionId}">
+                    ${escapeHtml(truncateTitle(title, 42))}
+                  </button>
+                  <div class="inline-note">${rowNote}</div>
+                `
             }
           </div>
         </td>
@@ -242,6 +252,9 @@
 
     document.querySelectorAll("[data-edit-id]").forEach((button) => {
       button.addEventListener("dblclick", (event) => {
+        if (state.aiType !== "codex") {
+          return;
+        }
         event.stopPropagation();
         const sessionId = button.getAttribute("data-edit-id");
         const session = state.sessions.find((item) => item.sessionId === sessionId);
@@ -270,20 +283,21 @@
         }
         if (event.key === "Enter") {
           event.preventDefault();
-          const sessionId = input.getAttribute("data-rename-input-id");
-          await renameSession(sessionId, input.value);
+          await renameSession(input.getAttribute("data-rename-input-id"), input.value);
         }
       });
     });
   }
 
   async function renameSession(sessionId, nextTitle) {
+    if (state.aiType !== "codex") {
+      return;
+    }
     const title = nextTitle.trim();
     if (!title) {
       alert("标题不能为空。");
       return;
     }
-    state.savingTitleId = sessionId;
     try {
       await api(`/api/sessions/${encodeURIComponent(sessionId)}`, {
         method: "PATCH",
@@ -305,8 +319,6 @@
       }
     } catch (error) {
       alert(`重命名失败：${error.message}`);
-    } finally {
-      state.savingTitleId = null;
     }
   }
 
@@ -323,7 +335,7 @@
     if (!state.selectedIds.size) {
       return;
     }
-    elements.deleteDialogCount.textContent = `即将永久删除 ${state.selectedIds.size} 个会话。`;
+    elements.deleteDialogCount.textContent = `即将永久删除 ${state.selectedIds.size} 个 ${buildAiSourceLabel(state.aiType)} 会话。`;
     elements.deleteDialog.showModal();
   }
 
@@ -336,18 +348,18 @@
     if (!sessionIds.length) {
       return;
     }
+    const paths = buildHistoryApiPaths(state.aiType);
     state.deleting = true;
     elements.confirmDeleteButton.disabled = true;
     try {
-      const result = await api("/api/sessions", {
+      const result = await api(paths.delete, {
         method: "DELETE",
         body: { sessionIds },
       });
-      state.sessions = state.sessions.filter(
-        (session) => !result.deleted.includes(session.sessionId),
-      );
+      const deleted = Array.isArray(result.deleted) ? result.deleted : [];
+      state.sessions = state.sessions.filter((session) => !deleted.includes(session.sessionId));
       sessionIds.forEach((sessionId) => state.selectedIds.delete(sessionId));
-      if (state.activeSessionId && result.deleted.includes(state.activeSessionId)) {
+      if (state.activeSessionId && deleted.includes(state.activeSessionId)) {
         clearDetail("当前会话已删除。");
       }
       closeDeleteDialog();
@@ -368,14 +380,14 @@
     }
   }
 
-  async function loadSessionDetail(sessionId, options) {
+  async function loadSessionDetail(sessionId) {
+    const paths = buildHistoryApiPaths(state.aiType, sessionId);
     state.loadingDetail = true;
-    elements.detailFeedback.textContent = "正在加载详情…";
+    elements.detailFeedback.textContent = "正在加载详情...";
     elements.detailFeedback.classList.remove("hidden");
     elements.detailContent.classList.add("hidden");
     try {
-      const detail = await api(`/api/sessions/${encodeURIComponent(sessionId)}`);
-      state.activeDetail = detail;
+      state.activeDetail = await api(paths.detail);
       state.activeSessionId = sessionId;
       renderDetail();
     } catch (error) {
@@ -388,61 +400,61 @@
   function renderDetail() {
     const detail = state.activeDetail;
     if (!detail) {
-      clearDetail("还没有选中的会话。");
+      clearDetail("请选择一个会话。");
       return;
     }
 
-    const title =
-      detail.meta?.title ||
-      state.sessions.find((session) => session.sessionId === detail.sessionId)?.title ||
-      detail.sessionId;
+    const session = state.sessions.find((item) => item.sessionId === detail.sessionId);
+    const title = detail.meta?.title || session?.title || detail.sessionId;
     elements.detailTitle.textContent = title;
-    elements.detailSubtitle.textContent = detail.isOrphaned
-      ? "该会话只有索引记录，详情文件已缺失。"
-      : `${detail.timeline.length || 0} 条对话摘要`;
-
-    elements.detailMeta.innerHTML = buildMetaHtml(detail);
+    elements.detailSubtitle.textContent =
+      state.aiType === "codex"
+        ? `${detail.timeline?.length || 0} 条对话摘要`
+        : `${detail.timeline?.length || 0} 条 Claude 摘要`;
+    elements.detailMeta.innerHTML = buildMetaHtml(detail, session);
     elements.timelineList.innerHTML = (detail.timeline || []).length
-      ? detail.timeline.map(renderTimelineItem).join("")
-      : '<div class="feedback muted">没有可展示的 user / assistant 摘要。</div>';
-
+      ? detail.timeline.map((item) => buildTimelineItemHtml(item, { formatDate })).join("")
+      : '<div class="feedback muted">没有可展示的对话摘要。</div>';
     elements.detailFeedback.classList.add("hidden");
     elements.detailContent.classList.remove("hidden");
   }
 
-  function buildMetaHtml(detail) {
-    const entries = [
-      {
-        key: "Session ID",
-        valueHtml: buildSessionIdMetaValueHtml(detail.sessionId),
-      },
-      [
-        "Source",
-        detail.meta?.source ||
-          state.sessions.find((session) => session.sessionId === detail.sessionId)?.source ||
-          "sessions",
-      ],
-      ["Title", detail.meta?.title || "-"],
-      ["Updated", formatDate(detail.meta?.updatedAt || detail.meta?.timestamp)],
-      ["CWD", detail.meta?.cwd || "-"],
-      ...buildUsageMetaEntries(detail.usage),
-    ];
+  function buildMetaHtml(detail, session) {
+    const entries =
+      state.aiType === "codex"
+        ? [
+            {
+              key: "会话 ID",
+              valueHtml: buildSessionIdMetaValueHtml(detail.sessionId),
+            },
+            ["AI 类型", "Codex"],
+            ["标题", detail.meta?.title || "-"],
+            ["更新时间", formatDate(detail.meta?.updatedAt || detail.meta?.timestamp)],
+            ["工作目录", detail.meta?.cwd || "-"],
+            ...buildUsageMetaEntries(detail.usage),
+          ]
+        : [
+            {
+              key: "会话 ID",
+              valueHtml: buildSessionIdMetaValueHtml(detail.sessionId),
+            },
+            ["AI 类型", "Claude"],
+            ["项目", detail.meta?.path || session?.project || "-"],
+            ["工作目录", detail.meta?.cwd || "-"],
+            ["模型", detail.model || session?.model || "-"],
+            ["原始事件", String(detail.totalEvents || 0)],
+            ...buildUsageMetaEntries(detail.usage),
+          ];
 
     return entries
-      .map(
-        (entry) => {
-          if (Array.isArray(entry)) {
-            const [key, value] = entry;
-            return `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value || "-"))}</dd>`;
-          }
-          return `<dt>${escapeHtml(entry.key)}</dt><dd>${entry.valueHtml}</dd>`;
-        },
-      )
+      .map((entry) => {
+        if (Array.isArray(entry)) {
+          const [key, value] = entry;
+          return `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value || "-"))}</dd>`;
+        }
+        return `<dt>${escapeHtml(entry.key)}</dt><dd>${entry.valueHtml}</dd>`;
+      })
       .join("");
-  }
-
-  function renderTimelineItem(item) {
-    return buildTimelineItemHtml(item, { formatDate });
   }
 
   async function handleTimelineActions(event) {
@@ -450,7 +462,6 @@
     if (!button) {
       return;
     }
-
     const markdown = button.getAttribute("data-copy-markdown") || "";
     const originalLabel = button.textContent;
     button.disabled = true;
@@ -473,14 +484,15 @@
     if (!button) {
       return;
     }
-
     const sessionId = button.getAttribute("data-resume-session-id") || "";
+    const resumePath = buildHistoryApiPaths(state.aiType, sessionId).resume;
+    if (!resumePath) {
+      return;
+    }
     const originalLabel = button.textContent;
     button.disabled = true;
     try {
-      await api(`/api/sessions/${encodeURIComponent(sessionId)}/resume`, {
-        method: "POST",
-      });
+      await api(resumePath, { method: "POST" });
       button.textContent = "已启动";
     } catch (error) {
       button.textContent = "启动失败";
@@ -497,53 +509,43 @@
     state.activeSessionId = null;
     state.activeDetail = null;
     elements.detailTitle.textContent = "会话详情";
-    elements.detailSubtitle.textContent = "选择左侧会话以查看摘要。";
+    elements.detailSubtitle.textContent = "选择左侧会话以查看详情。";
     elements.detailFeedback.textContent = message;
     elements.detailFeedback.classList.remove("hidden");
     elements.detailContent.classList.add("hidden");
-    renderSessions();
   }
 
   function startWorkspaceResize(event) {
     if (!isDesktopLayout() || event.button !== 0) {
       return;
     }
-
     const workspaceRect = elements.workspace.getBoundingClientRect();
     if (!workspaceRect.width) {
       return;
     }
-
     stopWorkspaceResize();
     event.preventDefault();
     document.body.classList.add("workspace-resizing");
     elements.workspaceDivider.classList.add("dragging");
-
     const pointerId = event.pointerId;
     if (typeof elements.workspaceDivider.setPointerCapture === "function") {
       elements.workspaceDivider.setPointerCapture(pointerId);
     }
-
     const handlePointerMove = (moveEvent) => {
-      if (moveEvent.pointerId !== pointerId) {
-        return;
+      if (moveEvent.pointerId === pointerId) {
+        applyWorkspaceSplit(moveEvent.clientX);
       }
-      applyWorkspaceSplit(moveEvent.clientX);
     };
-
     const handlePointerEnd = (endEvent) => {
-      if (endEvent.pointerId !== pointerId) {
-        return;
+      if (endEvent.pointerId === pointerId) {
+        stopWorkspaceResize();
       }
-      stopWorkspaceResize();
     };
-
     state.activeResizeSession = {
       pointerId,
       handlePointerMove,
       handlePointerEnd,
     };
-
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerEnd);
     window.addEventListener("pointercancel", handlePointerEnd);
@@ -557,19 +559,16 @@
       elements.workspaceDivider.classList.remove("dragging");
       return;
     }
-
     window.removeEventListener("pointermove", activeSession.handlePointerMove);
     window.removeEventListener("pointerup", activeSession.handlePointerEnd);
     window.removeEventListener("pointercancel", activeSession.handlePointerEnd);
-
     if (typeof elements.workspaceDivider.releasePointerCapture === "function") {
       try {
         elements.workspaceDivider.releasePointerCapture(activeSession.pointerId);
       } catch (error) {
-        // Ignore release errors if the browser already dropped capture.
+        // Browser may already have released pointer capture.
       }
     }
-
     state.activeResizeSession = null;
     document.body.classList.remove("workspace-resizing");
     elements.workspaceDivider.classList.remove("dragging");
@@ -579,7 +578,6 @@
     if (!isDesktopLayout()) {
       return;
     }
-
     const workspaceRect = elements.workspace.getBoundingClientRect();
     const dividerWidth = elements.workspaceDivider.getBoundingClientRect().width || 14;
     const requestedLeftWidth = pointerClientX - workspaceRect.left - dividerWidth / 2;
@@ -589,7 +587,6 @@
       dividerWidth,
       minPaneWidth: MIN_WORKSPACE_PANE_WIDTH,
     });
-
     state.workspaceLeftWidth = split.leftWidth;
     elements.workspace.style.setProperty("--workspace-left-width", split.leftTrackWidth);
     elements.workspace.style.setProperty("--workspace-right-width", split.rightTrackWidth);
@@ -602,13 +599,11 @@
       elements.workspace.style.removeProperty("--workspace-right-width");
       return;
     }
-
     if (state.workspaceLeftWidth == null) {
       elements.workspace.style.removeProperty("--workspace-left-width");
       elements.workspace.style.removeProperty("--workspace-right-width");
       return;
     }
-
     const workspaceRect = elements.workspace.getBoundingClientRect();
     const dividerWidth = elements.workspaceDivider.getBoundingClientRect().width || 14;
     const split = buildWorkspaceTrackWidths({
@@ -617,7 +612,6 @@
       dividerWidth,
       minPaneWidth: MIN_WORKSPACE_PANE_WIDTH,
     });
-
     state.workspaceLeftWidth = split.leftWidth;
     elements.workspace.style.setProperty("--workspace-left-width", split.leftTrackWidth);
     elements.workspace.style.setProperty("--workspace-right-width", split.rightTrackWidth);
@@ -635,7 +629,6 @@
       },
       body: options?.body ? JSON.stringify(options.body) : undefined,
     });
-
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(payload.error || `HTTP ${response.status}`);
@@ -672,7 +665,7 @@
     if (window.CSS && typeof window.CSS.escape === "function") {
       return window.CSS.escape(value);
     }
-    return value.replace(/["\\]/g, "\\$&");
+    return String(value).replace(/["\\]/g, "\\$&");
   }
 
   async function copyText(text) {
@@ -680,7 +673,6 @@
       await navigator.clipboard.writeText(text);
       return;
     }
-
     const textarea = document.createElement("textarea");
     textarea.value = text;
     textarea.setAttribute("readonly", "readonly");
@@ -689,9 +681,8 @@
     textarea.select();
     const copied = document.execCommand("copy");
     document.body.removeChild(textarea);
-
     if (!copied) {
-      throw new Error("浏览器不支持剪贴板写入。");
+      throw new Error("浏览器不支持写入剪贴板。");
     }
   }
 })();

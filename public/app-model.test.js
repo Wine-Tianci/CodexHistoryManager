@@ -1,20 +1,33 @@
 const assert = require("node:assert/strict");
 
 const {
+  AI_TYPE_STORAGE_KEYS,
+  buildAiTypeOptions,
+  buildHistoryApiPaths,
+  buildProfileApiPaths,
+  buildAiSourceLabel,
   buildCurrentConfigMetaEntries,
+  buildClaudeCurrentConfigMetaEntries,
+  buildClaudeProfileMetaEntries,
   buildProfileMetaEntries,
   buildUsageMetaEntries,
   buildSessionIdMetaValueHtml,
   buildWorkspaceTrackWidths,
   buildTimelineItemHtml,
   clampWorkspaceSplit,
+  filterClaudeSessions,
   filterSessions,
+  filterUnifiedSessions,
   formatTokenCount,
   maskApiKey,
+  readStoredAiType,
   renderMarkdownToHtml,
+  writeStoredAiType,
   sortProfilesForDisplay,
   sortSessionsByUpdatedAt,
+  validateClaudeProfileDraft,
   validateProfileDraft,
+  resetHistoryStateForAiType,
 } = require("./app-model");
 
 function run(name, fn) {
@@ -300,3 +313,261 @@ run("validateProfileDraft allows blank default model settings", () => {
     {},
   );
 });
+
+run("filterClaudeSessions matches title, session id, project, and model", () => {
+  const sessions = [
+    {
+      sessionId: "11111111-1111-4111-8111-111111111111",
+      updatedAt: "2026-05-13T08:00:00.000Z",
+      title: "Create CLAUDE.md",
+      project: "F:\\workspace_Hydra",
+      model: "claude-haiku-4-5-20251001",
+    },
+    {
+      sessionId: "22222222-2222-4222-8222-222222222222",
+      updatedAt: "2026-05-13T07:00:00.000Z",
+      title: "Review config",
+      project: "C:\\Windows\\system32",
+      model: "claude-sonnet-4-5-20251001",
+    },
+  ];
+
+  assert.deepEqual(
+    filterClaudeSessions(sessions, { search: "hydra" }).map((item) => item.sessionId),
+    ["11111111-1111-4111-8111-111111111111"],
+  );
+  assert.deepEqual(
+    filterClaudeSessions(sessions, { search: "sonnet" }).map((item) => item.sessionId),
+    ["22222222-2222-4222-8222-222222222222"],
+  );
+});
+
+run("buildAiTypeOptions returns the supported AI types", () => {
+  assert.deepEqual(buildAiTypeOptions(), [
+    { value: "codex", label: "Codex" },
+    { value: "claude", label: "Claude" },
+  ]);
+});
+
+run("AI type storage keys keep history and profiles selections independent", () => {
+  assert.deepEqual(AI_TYPE_STORAGE_KEYS, {
+    history: "ai-agent-deck.history.aiType",
+    profiles: "ai-agent-deck.profiles.aiType",
+  });
+});
+
+run("readStoredAiType restores a valid saved AI type", () => {
+  const storage = createMemoryStorage({
+    "ai-agent-deck.history.aiType": "claude",
+    "ai-agent-deck.profiles.aiType": "codex",
+  });
+
+  assert.equal(
+    readStoredAiType(storage, AI_TYPE_STORAGE_KEYS.history),
+    "claude",
+  );
+  assert.equal(
+    readStoredAiType(storage, AI_TYPE_STORAGE_KEYS.profiles),
+    "codex",
+  );
+});
+
+run("readStoredAiType falls back when storage is missing or invalid", () => {
+  assert.equal(readStoredAiType(null, AI_TYPE_STORAGE_KEYS.history), "codex");
+  assert.equal(
+    readStoredAiType(createMemoryStorage({ "ai-agent-deck.history.aiType": "bad" }), AI_TYPE_STORAGE_KEYS.history),
+    "codex",
+  );
+  assert.equal(
+    readStoredAiType(createThrowingStorage(), AI_TYPE_STORAGE_KEYS.history, "claude"),
+    "claude",
+  );
+});
+
+run("writeStoredAiType persists valid values and ignores invalid storage", () => {
+  const storage = createMemoryStorage();
+
+  writeStoredAiType(storage, AI_TYPE_STORAGE_KEYS.history, "claude");
+  writeStoredAiType(storage, AI_TYPE_STORAGE_KEYS.profiles, "codex");
+  writeStoredAiType(storage, AI_TYPE_STORAGE_KEYS.history, "bad");
+
+  assert.equal(storage.getItem(AI_TYPE_STORAGE_KEYS.history), "claude");
+  assert.equal(storage.getItem(AI_TYPE_STORAGE_KEYS.profiles), "codex");
+  assert.doesNotThrow(() => writeStoredAiType(createThrowingStorage(), AI_TYPE_STORAGE_KEYS.history, "claude"));
+});
+
+run("filterUnifiedSessions searches and filters Codex and Claude sessions", () => {
+  const sessions = [
+    {
+      aiType: "codex",
+      source: "sessions",
+      sessionId: "codex-live",
+      updatedAt: "2026-05-13T08:00:00.000Z",
+      title: "重构工具",
+    },
+    {
+      aiType: "claude",
+      source: "claude",
+      sessionId: "claude-work",
+      updatedAt: "2026-05-13T09:00:00.000Z",
+      title: "文档整理",
+      project: "Hydra",
+      model: "claude-sonnet-4-5",
+    },
+    {
+      aiType: "codex",
+      source: "archived_sessions",
+      sessionId: "codex-archived",
+      updatedAt: "2026-05-13T07:00:00.000Z",
+      title: "历史任务",
+    },
+  ];
+
+  assert.deepEqual(
+    filterUnifiedSessions(sessions, { aiType: "claude", search: "sonnet" }).map(
+      (session) => session.sessionId,
+    ),
+    ["claude-work"],
+  );
+  assert.deepEqual(
+    filterUnifiedSessions(sessions, { aiType: "codex", source: "archived_sessions" }).map(
+      (session) => session.sessionId,
+    ),
+    ["codex-archived"],
+  );
+});
+
+run("buildHistoryApiPaths selects the correct session API family", () => {
+  assert.deepEqual(buildHistoryApiPaths("codex", "abc 123"), {
+    list: "/api/sessions",
+    detail: "/api/sessions/abc%20123",
+    delete: "/api/sessions",
+    resume: "/api/sessions/abc%20123/resume",
+  });
+  assert.deepEqual(buildHistoryApiPaths("claude", "abc 123"), {
+    list: "/api/claude/sessions",
+    detail: "/api/claude/sessions/abc%20123",
+    delete: "/api/claude/sessions",
+    resume: "/api/claude/sessions/abc%20123/resume",
+  });
+});
+
+run("buildAiSourceLabel returns visible source labels", () => {
+  assert.equal(buildAiSourceLabel("codex"), "Codex");
+  assert.equal(buildAiSourceLabel("claude"), "Claude");
+});
+
+run("resetHistoryStateForAiType clears incompatible detail and selection", () => {
+  const selectedIds = new Set(["one", "two"]);
+  const nextState = resetHistoryStateForAiType({
+    aiType: "codex",
+    sessions: [{ sessionId: "one" }],
+    filteredSessions: [{ sessionId: "one" }],
+    selectedIds,
+    activeSessionId: "one",
+    activeDetail: { sessionId: "one" },
+  }, "claude");
+
+  assert.equal(nextState.aiType, "claude");
+  assert.deepEqual(nextState.sessions, []);
+  assert.deepEqual(nextState.filteredSessions, []);
+  assert.equal(nextState.selectedIds.size, 0);
+  assert.equal(nextState.activeSessionId, null);
+  assert.equal(nextState.activeDetail, null);
+  assert.equal(selectedIds.size, 2);
+});
+
+run("buildClaudeProfileMetaEntries uses Claude business fields and masks the API key", () => {
+  assert.deepEqual(
+    buildClaudeProfileMetaEntries({
+      baseUrl: "https://example.test/bedrock",
+      apiKey: "sk-1234567890abcdef",
+      defaultModel: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    }),
+    [
+      ["Base URL", "https://example.test/bedrock"],
+      ["API Key", "sk-12...cdef"],
+      ["默认模型", "us.anthropic.claude-haiku-4-5-20251001-v1:0"],
+    ],
+  );
+});
+
+run("buildClaudeCurrentConfigMetaEntries uses Claude business fields", () => {
+  assert.deepEqual(
+    buildClaudeCurrentConfigMetaEntries({
+      baseUrl: "https://example.test/bedrock",
+      apiKey: "sk-1234567890abcdef",
+      defaultModel: "claude-sonnet-4-5-20251001",
+    }),
+    [
+      ["Base URL", "https://example.test/bedrock"],
+      ["API Key", "sk-12...cdef"],
+      ["默认模型", "claude-sonnet-4-5-20251001"],
+    ],
+  );
+});
+
+run("validateClaudeProfileDraft requires Claude business fields", () => {
+  assert.deepEqual(
+    validateClaudeProfileDraft({
+      name: " ",
+      baseUrl: "",
+      apiKey: "",
+      defaultModel: "",
+    }),
+    {
+      name: "名称不能为空。",
+      baseUrl: "Base URL 不能为空。",
+      apiKey: "API Key 不能为空。",
+      defaultModel: "默认模型不能为空。",
+    },
+  );
+
+  assert.deepEqual(
+    validateClaudeProfileDraft({
+      name: "Claude Work",
+      baseUrl: "https://example.test/bedrock",
+      apiKey: "sk-test",
+      defaultModel: "claude-haiku-4-5",
+    }),
+    {},
+  );
+});
+
+run("buildProfileApiPaths selects the correct profile API family", () => {
+  assert.deepEqual(buildProfileApiPaths("codex", "profile 1"), {
+    list: "/api/profiles",
+    detail: "/api/profiles/profile%201",
+    activate: "/api/profiles/profile%201/activate",
+    delete: "/api/profiles/profile%201",
+  });
+  assert.deepEqual(buildProfileApiPaths("claude", "profile 1"), {
+    list: "/api/claude/profiles",
+    detail: "/api/claude/profiles/profile%201",
+    activate: "/api/claude/profiles/profile%201/activate",
+    delete: "/api/claude/profiles/profile%201",
+  });
+});
+
+function createMemoryStorage(initialValues = {}) {
+  const data = new Map(Object.entries(initialValues));
+  return {
+    getItem(key) {
+      return data.has(key) ? data.get(key) : null;
+    },
+    setItem(key, value) {
+      data.set(key, String(value));
+    },
+  };
+}
+
+function createThrowingStorage() {
+  return {
+    getItem() {
+      throw new Error("storage unavailable");
+    },
+    setItem() {
+      throw new Error("storage unavailable");
+    },
+  };
+}

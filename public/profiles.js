@@ -2,14 +2,23 @@
 
 (function bootstrapProfiles() {
   const {
+    AI_TYPE_STORAGE_KEYS,
+    buildAiSourceLabel,
+    buildClaudeCurrentConfigMetaEntries,
+    buildClaudeProfileMetaEntries,
     buildCurrentConfigMetaEntries,
+    buildProfileApiPaths,
     buildProfileMetaEntries,
     escapeHtml,
+    readStoredAiType,
     sortProfilesForDisplay,
+    validateClaudeProfileDraft,
     validateProfileDraft,
-  } = window.CodexHistoryModel;
+    writeStoredAiType,
+  } = window.AIAgentDeckModel;
 
   const state = {
+    aiType: readStoredAiType(window.localStorage, AI_TYPE_STORAGE_KEYS.profiles),
     profiles: [],
     activeProfileId: null,
     lastActivatedProfileId: null,
@@ -17,7 +26,7 @@
     hasUnmanagedActiveConfig: false,
     selectedProfileId: null,
     selectedProfile: null,
-    draft: createEmptyDraft(),
+    draft: createEmptyDraft("codex"),
     formErrors: {},
     loadingList: false,
     loadingDetail: false,
@@ -29,10 +38,12 @@
 
   const elements = collectElements();
   bindEvents();
+  syncModeControls();
   loadProfiles();
 
   function collectElements() {
     return {
+      aiTypeSelect: document.getElementById("profile-ai-type-select"),
       refreshButton: document.getElementById("profiles-refresh-button"),
       newProfileButton: document.getElementById("new-profile-button"),
       profilesCount: document.getElementById("profiles-count"),
@@ -43,6 +54,8 @@
       formTitle: document.getElementById("profile-form-title"),
       formSubtitle: document.getElementById("profile-form-subtitle"),
       form: document.getElementById("profile-form"),
+      codexFields: document.getElementById("codex-profile-fields"),
+      claudeFields: document.getElementById("claude-profile-fields"),
       nameInput: document.getElementById("profile-name-input"),
       providerInput: document.getElementById("profile-provider-input"),
       apiKeyInput: document.getElementById("profile-api-key-input"),
@@ -51,10 +64,20 @@
       modelReasoningEffortInput: document.getElementById(
         "profile-model-reasoning-effort-input",
       ),
+      claudeBaseUrlInput: document.getElementById("claude-profile-base-url-input"),
+      claudeApiKeyInput: document.getElementById("claude-profile-api-key-input"),
+      claudeDefaultModelInput: document.getElementById(
+        "claude-profile-default-model-input",
+      ),
       nameError: document.getElementById("profile-name-error"),
       providerError: document.getElementById("profile-provider-error"),
       apiKeyError: document.getElementById("profile-api-key-error"),
       baseUrlError: document.getElementById("profile-base-url-error"),
+      claudeBaseUrlError: document.getElementById("claude-profile-base-url-error"),
+      claudeApiKeyError: document.getElementById("claude-profile-api-key-error"),
+      claudeDefaultModelError: document.getElementById(
+        "claude-profile-default-model-error",
+      ),
       saveButton: document.getElementById("save-profile-button"),
       activateButton: document.getElementById("activate-profile-button"),
       deleteButton: document.getElementById("delete-profile-button"),
@@ -66,6 +89,7 @@
   }
 
   function bindEvents() {
+    elements.aiTypeSelect.addEventListener("change", changeAiType);
     elements.refreshButton.addEventListener("click", () => loadProfiles(state.selectedProfileId));
     elements.newProfileButton.addEventListener("click", startCreatingProfile);
     elements.form.addEventListener("submit", saveProfile);
@@ -74,20 +98,51 @@
     elements.cancelDeleteButton.addEventListener("click", closeDeleteDialog);
     elements.confirmDeleteButton.addEventListener("click", deleteProfile);
 
-    elements.nameInput.addEventListener("input", handleDraftChange);
-    elements.providerInput.addEventListener("input", handleDraftChange);
-    elements.apiKeyInput.addEventListener("input", handleDraftChange);
-    elements.baseUrlInput.addEventListener("input", handleDraftChange);
-    elements.modelInput.addEventListener("input", handleDraftChange);
-    elements.modelReasoningEffortInput.addEventListener("input", handleDraftChange);
+    [
+      elements.nameInput,
+      elements.providerInput,
+      elements.apiKeyInput,
+      elements.baseUrlInput,
+      elements.modelInput,
+      elements.modelReasoningEffortInput,
+      elements.claudeBaseUrlInput,
+      elements.claudeApiKeyInput,
+      elements.claudeDefaultModelInput,
+    ].forEach((input) => input.addEventListener("input", handleDraftChange));
+  }
+
+  function changeAiType() {
+    state.aiType = elements.aiTypeSelect.value;
+    writeStoredAiType(window.localStorage, AI_TYPE_STORAGE_KEYS.profiles, state.aiType);
+    state.profiles = [];
+    state.activeProfileId = null;
+    state.lastActivatedProfileId = null;
+    state.currentConfig = null;
+    state.hasUnmanagedActiveConfig = false;
+    state.selectedProfileId = null;
+    state.selectedProfile = null;
+    state.draft = createEmptyDraft(state.aiType);
+    state.formErrors = {};
+    state.listError = "";
+    syncModeControls();
+    render();
+    loadProfiles();
+  }
+
+  function syncModeControls() {
+    elements.aiTypeSelect.value = state.aiType;
+    const isClaude = state.aiType === "claude";
+    elements.codexFields.classList.toggle("hidden", isClaude);
+    elements.claudeFields.classList.toggle("hidden", !isClaude);
   }
 
   async function loadProfiles(nextSelectedId) {
+    const paths = buildProfileApiPaths(state.aiType);
     state.loadingList = true;
     state.listError = "";
     render();
     try {
-      const payload = await api("/api/profiles");
+      const payload = await api(paths.list);
       state.profiles = Array.isArray(payload.profiles) ? payload.profiles : [];
       state.activeProfileId = payload.activeProfileId || null;
       state.lastActivatedProfileId = payload.lastActivatedProfileId || null;
@@ -118,17 +173,10 @@
     state.loadingDetail = true;
     render();
     try {
-      const detail = await api(`/api/profiles/${encodeURIComponent(profileId)}`);
+      const detail = await api(buildProfileApiPaths(state.aiType, profileId).detail);
       state.selectedProfileId = profileId;
       state.selectedProfile = detail;
-      state.draft = {
-        name: detail.name || "",
-        provider: detail.provider || "Custom",
-        apiKey: detail.apiKey || "",
-        baseUrl: detail.baseUrl || "",
-        model: detail.model || "",
-        modelReasoningEffort: detail.modelReasoningEffort || "",
-      };
+      state.draft = profileToDraft(detail);
       state.formErrors = {};
     } catch (error) {
       alert(`加载方案失败：${error.message}`);
@@ -141,7 +189,7 @@
   function startCreatingProfile(shouldRender = true) {
     state.selectedProfileId = null;
     state.selectedProfile = null;
-    state.draft = createEmptyDraft();
+    state.draft = createEmptyDraft(state.aiType);
     state.formErrors = {};
     if (shouldRender) {
       render();
@@ -150,21 +198,32 @@
   }
 
   function handleDraftChange() {
-    state.draft = {
-      name: elements.nameInput.value,
-      provider: elements.providerInput.value,
-      apiKey: elements.apiKeyInput.value,
-      baseUrl: elements.baseUrlInput.value,
-      model: elements.modelInput.value,
-      modelReasoningEffort: elements.modelReasoningEffortInput.value,
-    };
+    state.draft =
+      state.aiType === "claude"
+        ? {
+            name: elements.nameInput.value,
+            baseUrl: elements.claudeBaseUrlInput.value,
+            apiKey: elements.claudeApiKeyInput.value,
+            defaultModel: elements.claudeDefaultModelInput.value,
+          }
+        : {
+            name: elements.nameInput.value,
+            provider: elements.providerInput.value,
+            apiKey: elements.apiKeyInput.value,
+            baseUrl: elements.baseUrlInput.value,
+            model: elements.modelInput.value,
+            modelReasoningEffort: elements.modelReasoningEffortInput.value,
+          };
     state.formErrors = {};
     renderForm();
   }
 
   async function saveProfile(event) {
     event.preventDefault();
-    const errors = validateProfileDraft(state.draft);
+    const errors =
+      state.aiType === "claude"
+        ? validateClaudeProfileDraft(state.draft)
+        : validateProfileDraft(state.draft);
     state.formErrors = errors;
     renderForm();
     if (Object.keys(errors).length) {
@@ -174,12 +233,13 @@
     state.saving = true;
     renderForm();
     try {
+      const paths = buildProfileApiPaths(state.aiType, state.selectedProfileId);
       const payload = state.selectedProfileId
-        ? await api(`/api/profiles/${encodeURIComponent(state.selectedProfileId)}`, {
+        ? await api(paths.detail, {
             method: "PATCH",
             body: state.draft,
           })
-        : await api("/api/profiles", {
+        : await api(buildProfileApiPaths(state.aiType).list, {
             method: "POST",
             body: state.draft,
           });
@@ -194,7 +254,7 @@
 
   async function activateProfile() {
     if (!state.selectedProfileId) {
-      alert("请先保存方案，再执行切换。");
+      alert("请先保存方案，再切换为当前方案。");
       return;
     }
     if (isDraftDirty()) {
@@ -204,7 +264,7 @@
     state.activating = true;
     renderForm();
     try {
-      await api(`/api/profiles/${encodeURIComponent(state.selectedProfileId)}/activate`, {
+      await api(buildProfileApiPaths(state.aiType, state.selectedProfileId).activate, {
         method: "POST",
       });
       await loadProfiles(state.selectedProfileId);
@@ -220,7 +280,7 @@
     if (!state.selectedProfileId || !state.selectedProfile) {
       return;
     }
-    elements.deleteDialogText.textContent = `即将删除方案“${state.selectedProfile.name}”。`;
+    elements.deleteDialogText.textContent = `即将删除 ${buildAiSourceLabel(state.aiType)} 方案“${state.selectedProfile.name}”。`;
     elements.deleteDialog.showModal();
   }
 
@@ -235,7 +295,7 @@
     state.deleting = true;
     renderForm();
     try {
-      await api(`/api/profiles/${encodeURIComponent(state.selectedProfileId)}`, {
+      await api(buildProfileApiPaths(state.aiType, state.selectedProfileId).delete, {
         method: "DELETE",
       });
       closeDeleteDialog();
@@ -250,6 +310,7 @@
   }
 
   function render() {
+    syncModeControls();
     renderStatus();
     renderList();
     renderForm();
@@ -257,7 +318,8 @@
 
   function renderStatus() {
     if (!state.currentConfig) {
-      elements.statusText.textContent = state.listError || "正在读取当前 Codex 配置…";
+      elements.statusText.textContent =
+        state.listError || `正在读取当前 ${buildAiSourceLabel(state.aiType)} 配置...`;
       elements.currentConfig.innerHTML = "";
       return;
     }
@@ -273,7 +335,11 @@
       elements.statusText.textContent = "当前尚未检测到可识别的生效配置。";
     }
 
-    elements.currentConfig.innerHTML = buildCurrentConfigMetaEntries(state.currentConfig)
+    const entries =
+      state.aiType === "claude"
+        ? buildClaudeCurrentConfigMetaEntries(state.currentConfig)
+        : buildCurrentConfigMetaEntries(state.currentConfig);
+    elements.currentConfig.innerHTML = entries
       .map(
         ([key, value]) =>
           `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value || "-"))}</dd>`,
@@ -288,27 +354,27 @@
     if (state.listError) {
       elements.profilesListFeedback.textContent = state.listError;
     } else if (state.loadingList) {
-      elements.profilesListFeedback.textContent = "正在加载方案列表…";
+      elements.profilesListFeedback.textContent = "正在加载方案列表...";
     } else if (!profiles.length) {
-      elements.profilesListFeedback.textContent = "还没有已保存方案。";
+      elements.profilesListFeedback.textContent = `还没有保存的 ${buildAiSourceLabel(state.aiType)} 方案。`;
     } else {
       elements.profilesListFeedback.textContent = "点击左侧方案可查看详情并编辑。";
     }
 
-    elements.profilesList.innerHTML = profiles
-      .map((profile) => renderProfileItem(profile))
-      .join("");
-
+    elements.profilesList.innerHTML = profiles.map((profile) => renderProfileItem(profile)).join("");
     document.querySelectorAll("[data-profile-id]").forEach((button) => {
       button.addEventListener("click", async () => {
-        const profileId = button.getAttribute("data-profile-id");
-        await loadProfileDetail(profileId);
+        await loadProfileDetail(button.getAttribute("data-profile-id"));
       });
     });
   }
 
   function renderProfileItem(profile) {
     const isSelected = state.selectedProfileId === profile.id;
+    const entries =
+      state.aiType === "claude"
+        ? buildClaudeProfileMetaEntries(profile)
+        : buildProfileMetaEntries(profile);
     return `
       <button
         class="profile-item${isSelected ? " selected" : ""}"
@@ -319,9 +385,8 @@
           <strong>${escapeHtml(profile.name)}</strong>
           ${profile.isActive ? '<span class="status-badge">在用</span>' : ""}
         </div>
-        ${buildProfileMetaEntries(profile)
-          .map(([label, value]) => renderProfileMetaLine(label, value))
-          .join("")}
+        <div class="profile-item-meta">AI 类型: ${escapeHtml(buildAiSourceLabel(state.aiType))}</div>
+        ${entries.map(([label, value]) => renderProfileMetaLine(label, value)).join("")}
       </button>
     `;
   }
@@ -339,25 +404,31 @@
       ? state.selectedProfile?.isActive
         ? "该方案当前正在生效。"
         : "可以修改方案信息，或切换为当前方案。"
-      : "填写名称、密钥和 Base URL 后保存。";
+      : `填写 ${buildAiSourceLabel(state.aiType)} 方案字段后保存。`;
 
-    elements.nameInput.value = state.draft.name;
-    elements.providerInput.value = state.draft.provider;
-    elements.apiKeyInput.value = state.draft.apiKey;
-    elements.baseUrlInput.value = state.draft.baseUrl;
-    elements.modelInput.value = state.draft.model;
-    elements.modelReasoningEffortInput.value = state.draft.modelReasoningEffort;
+    elements.nameInput.value = state.draft.name || "";
+    elements.providerInput.value = state.draft.provider || "Custom";
+    elements.apiKeyInput.value = state.draft.apiKey || "";
+    elements.baseUrlInput.value = state.draft.baseUrl || "";
+    elements.modelInput.value = state.draft.model || "";
+    elements.modelReasoningEffortInput.value = state.draft.modelReasoningEffort || "";
+    elements.claudeBaseUrlInput.value = state.draft.baseUrl || "";
+    elements.claudeApiKeyInput.value = state.draft.apiKey || "";
+    elements.claudeDefaultModelInput.value = state.draft.defaultModel || "";
 
     setFieldError(elements.nameError, state.formErrors.name);
     setFieldError(elements.providerError, state.formErrors.provider);
     setFieldError(elements.apiKeyError, state.formErrors.apiKey);
     setFieldError(elements.baseUrlError, state.formErrors.baseUrl);
+    setFieldError(elements.claudeBaseUrlError, state.formErrors.baseUrl);
+    setFieldError(elements.claudeApiKeyError, state.formErrors.apiKey);
+    setFieldError(elements.claudeDefaultModelError, state.formErrors.defaultModel);
 
     elements.saveButton.textContent = isEditMode ? "保存修改" : "新增方案";
     elements.saveButton.disabled = state.saving || state.activating || state.deleting;
     elements.activateButton.disabled =
       !isEditMode || state.saving || state.activating || state.deleting;
-    elements.activateButton.textContent = state.activating ? "切换中…" : "切换为当前方案";
+    elements.activateButton.textContent = state.activating ? "切换中..." : "切换为当前方案";
     elements.deleteButton.disabled =
       !isEditMode || state.saving || state.activating || state.deleting;
   }
@@ -371,18 +442,38 @@
     if (!state.selectedProfile) {
       return false;
     }
-    return (
-      state.draft.name !== state.selectedProfile.name ||
-      state.draft.provider !== (state.selectedProfile.provider || "Custom") ||
-      state.draft.apiKey !== state.selectedProfile.apiKey ||
-      state.draft.baseUrl !== state.selectedProfile.baseUrl ||
-      state.draft.model !== (state.selectedProfile.model || "") ||
-      state.draft.modelReasoningEffort !==
-        (state.selectedProfile.modelReasoningEffort || "")
-    );
+    const current = profileToDraft(state.selectedProfile);
+    return Object.keys(current).some((key) => (state.draft[key] || "") !== (current[key] || ""));
   }
 
-  function createEmptyDraft() {
+  function profileToDraft(profile) {
+    if (state.aiType === "claude") {
+      return {
+        name: profile.name || "",
+        baseUrl: profile.baseUrl || "",
+        apiKey: profile.apiKey || "",
+        defaultModel: profile.defaultModel || "",
+      };
+    }
+    return {
+      name: profile.name || "",
+      provider: profile.provider || "Custom",
+      apiKey: profile.apiKey || "",
+      baseUrl: profile.baseUrl || "",
+      model: profile.model || "",
+      modelReasoningEffort: profile.modelReasoningEffort || "",
+    };
+  }
+
+  function createEmptyDraft(aiType) {
+    if (aiType === "claude") {
+      return {
+        name: "",
+        baseUrl: "",
+        apiKey: "",
+        defaultModel: "",
+      };
+    }
     return {
       name: "",
       provider: "Custom",
@@ -401,7 +492,6 @@
       },
       body: options?.body ? JSON.stringify(options.body) : undefined,
     });
-
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(payload.error || `HTTP ${response.status}`);

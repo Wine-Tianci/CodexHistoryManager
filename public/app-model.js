@@ -2,6 +2,11 @@
   "use strict";
 
   const markdownRenderer = resolveMarkdownRenderer();
+  const AI_TYPE_STORAGE_KEYS = {
+    history: "ai-agent-deck.history.aiType",
+    profiles: "ai-agent-deck.profiles.aiType",
+  };
+  const VALID_AI_TYPES = new Set(["codex", "claude"]);
 
   function sortSessionsByUpdatedAt(sessions) {
     return [...sessions].sort((left, right) => {
@@ -25,6 +30,129 @@
       const haystack = `${session.title || ""}\n${session.sessionId || ""}`.toLowerCase();
       return haystack.includes(search);
     });
+  }
+
+  function filterClaudeSessions(sessions, filters) {
+    const search = (filters?.search || "").trim().toLowerCase();
+    return sortSessionsByUpdatedAt(sessions).filter((session) => {
+      if (!search) {
+        return true;
+      }
+      const haystack = [
+        session?.title || "",
+        session?.sessionId || "",
+        session?.project || "",
+        session?.model || "",
+      ]
+        .join("\n")
+        .toLowerCase();
+      return haystack.includes(search);
+    });
+  }
+
+  function buildAiTypeOptions() {
+    return [
+      { value: "codex", label: "Codex" },
+      { value: "claude", label: "Claude" },
+    ];
+  }
+
+  function filterUnifiedSessions(sessions, filters) {
+    const search = (filters?.search || "").trim().toLowerCase();
+    const aiType = filters?.aiType || "all";
+    const source = filters?.source || "all";
+
+    return sortSessionsByUpdatedAt(sessions).filter((session) => {
+      if (aiType !== "all" && session?.aiType !== aiType) {
+        return false;
+      }
+      if (source !== "all" && session?.source !== source) {
+        return false;
+      }
+      if (!search) {
+        return true;
+      }
+
+      const haystack = [
+        session?.title || "",
+        session?.sessionId || "",
+        session?.source || "",
+        session?.project || "",
+        session?.model || "",
+      ]
+        .join("\n")
+        .toLowerCase();
+      return haystack.includes(search);
+    });
+  }
+
+  function buildAiSourceLabel(aiType) {
+    return aiType === "claude" ? "Claude" : "Codex";
+  }
+
+  function readStoredAiType(storage, key, fallback = "codex") {
+    const normalizedFallback = normalizeAiType(fallback) || "codex";
+    if (!storage || typeof storage.getItem !== "function") {
+      return normalizedFallback;
+    }
+    try {
+      return normalizeAiType(storage.getItem(key)) || normalizedFallback;
+    } catch {
+      return normalizedFallback;
+    }
+  }
+
+  function writeStoredAiType(storage, key, aiType) {
+    const normalized = normalizeAiType(aiType);
+    if (!normalized || !storage || typeof storage.setItem !== "function") {
+      return;
+    }
+    try {
+      storage.setItem(key, normalized);
+    } catch {
+      // localStorage can be unavailable in private or locked-down browser contexts.
+    }
+  }
+
+  function buildHistoryApiPaths(aiType, sessionId) {
+    const encodedSessionId = encodeURIComponent(String(sessionId || ""));
+    if (aiType === "claude") {
+      return {
+        list: "/api/claude/sessions",
+        detail: `/api/claude/sessions/${encodedSessionId}`,
+        delete: "/api/claude/sessions",
+        resume: `/api/claude/sessions/${encodedSessionId}/resume`,
+      };
+    }
+    return {
+      list: "/api/sessions",
+      detail: `/api/sessions/${encodedSessionId}`,
+      delete: "/api/sessions",
+      resume: `/api/sessions/${encodedSessionId}/resume`,
+    };
+  }
+
+  function buildProfileApiPaths(aiType, profileId) {
+    const encodedProfileId = encodeURIComponent(String(profileId || ""));
+    const basePath = aiType === "claude" ? "/api/claude/profiles" : "/api/profiles";
+    return {
+      list: basePath,
+      detail: `${basePath}/${encodedProfileId}`,
+      activate: `${basePath}/${encodedProfileId}/activate`,
+      delete: `${basePath}/${encodedProfileId}`,
+    };
+  }
+
+  function resetHistoryStateForAiType(state, aiType) {
+    return {
+      ...state,
+      aiType,
+      sessions: [],
+      filteredSessions: [],
+      selectedIds: new Set(),
+      activeSessionId: null,
+      activeDetail: null,
+    };
   }
 
   function formatTokenCount(value) {
@@ -85,6 +213,28 @@
     ];
   }
 
+  function buildClaudeProfileMetaEntries(profile) {
+    return [
+      ["Base URL", profile?.baseUrl || "-"],
+      ["API Key", maskApiKey(profile?.apiKey || "")],
+      ["默认模型", profile?.defaultModel || "-"],
+    ];
+  }
+
+  function buildClaudeCurrentConfigMetaEntries(currentConfig) {
+    return [
+      ["Base URL", currentConfig?.baseUrl || "-"],
+      ["API Key", maskApiKey(currentConfig?.apiKey || "")],
+      ["默认模型", currentConfig?.defaultModel || "-"],
+    ];
+  }
+
+  function buildClaudeEnvMetaEntries(env) {
+    return Object.keys(env || {})
+      .sort((left, right) => left.localeCompare(right))
+      .map((key) => [key, isSensitiveEnvKey(key) ? maskApiKey(env[key]) : env[key]]);
+  }
+
   function validateProfileDraft(draft) {
     const errors = {};
     if (!String(draft?.name || "").trim()) {
@@ -98,6 +248,23 @@
     }
     if (!String(draft?.baseUrl || "").trim()) {
       errors.baseUrl = "Base URL 不能为空。";
+    }
+    return errors;
+  }
+
+  function validateClaudeProfileDraft(draft) {
+    const errors = {};
+    if (!String(draft?.name || "").trim()) {
+      errors.name = "名称不能为空。";
+    }
+    if (!String(draft?.baseUrl || "").trim()) {
+      errors.baseUrl = "Base URL 不能为空。";
+    }
+    if (!String(draft?.apiKey || "").trim()) {
+      errors.apiKey = "API Key 不能为空。";
+    }
+    if (!String(draft?.defaultModel || "").trim()) {
+      errors.defaultModel = "默认模型不能为空。";
     }
     return errors;
   }
@@ -229,6 +396,21 @@
     return value ? String(value) : "-";
   }
 
+  function normalizeAiType(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    return VALID_AI_TYPES.has(normalized) ? normalized : "";
+  }
+
+  function isSensitiveEnvKey(key) {
+    const text = String(key || "").toUpperCase();
+    return (
+      text.includes("KEY") ||
+      text.includes("TOKEN") ||
+      text.includes("SECRET") ||
+      text.includes("PASSWORD")
+    );
+  }
+
   function resolveMarkdownRenderer() {
     if (typeof globalScope.snarkdown === "function") {
       return globalScope.snarkdown;
@@ -240,7 +422,14 @@
   }
 
   const api = {
+    AI_TYPE_STORAGE_KEYS,
+    buildAiTypeOptions,
+    buildAiSourceLabel,
     buildCurrentConfigMetaEntries,
+    buildClaudeCurrentConfigMetaEntries,
+    buildClaudeProfileMetaEntries,
+    buildHistoryApiPaths,
+    buildProfileApiPaths,
     buildProfileMetaEntries,
     buildSessionIdMetaValueHtml,
     buildUsageMetaEntries,
@@ -248,18 +437,24 @@
     buildTimelineItemHtml,
     clampWorkspaceSplit,
     escapeHtml,
+    filterClaudeSessions,
     filterSessions,
+    filterUnifiedSessions,
     formatTokenCount,
     maskApiKey,
+    readStoredAiType,
     renderMarkdownToHtml,
+    resetHistoryStateForAiType,
     sortProfilesForDisplay,
     sortSessionsByUpdatedAt,
+    validateClaudeProfileDraft,
     validateProfileDraft,
+    writeStoredAiType,
   };
 
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;
   }
 
-  globalScope.CodexHistoryModel = api;
+  globalScope.AIAgentDeckModel = api;
 })(typeof window !== "undefined" ? window : globalThis);

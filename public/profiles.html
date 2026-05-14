@@ -3,24 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Codex Profile Manager</title>
+    <title>方案管理</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="app-shell">
       <header class="hero">
         <div>
-          <p class="eyebrow">Local Profile Control</p>
-          <h1>Codex Profile Manager</h1>
+          <p class="eyebrow">本机方案管理</p>
+          <h1>方案管理</h1>
           <p class="subtitle">
-            管理本机 Codex 接口方案，查看当前生效配置，并一键切换。
+            在同一个页面管理 Codex 与 Claude 的连接方案，并切换当前生效配置。
           </p>
         </div>
         <div class="hero-actions">
-          <a class="ghost-button button-link" href="./index.html">会话管理</a>
-          <button id="profiles-refresh-button" class="ghost-button" type="button">
-            刷新
-          </button>
+          <a class="ghost-button button-link" href="./index.html">历史管理</a>
+          <a class="ghost-button button-link active" href="./profiles.html">方案管理</a>
+          <button id="profiles-refresh-button" class="ghost-button" type="button">刷新</button>
         </div>
       </header>
 
@@ -28,13 +27,20 @@
         <div class="panel-heading">
           <div>
             <h2>当前配置</h2>
-            <p id="profiles-status-text" class="muted">
-              正在读取当前 Codex 配置…
-            </p>
+            <p id="profiles-status-text" class="muted">正在读取当前配置...</p>
           </div>
-          <button id="new-profile-button" class="ghost-button" type="button">
-            新增方案
-          </button>
+          <div class="profile-context-actions">
+            <label class="field field-compact inline-field">
+              <span>AI 类型</span>
+              <select id="profile-ai-type-select">
+                <option value="codex">Codex</option>
+                <option value="claude">Claude</option>
+              </select>
+            </label>
+            <button id="new-profile-button" class="ghost-button" type="button">
+              新增方案
+            </button>
+          </div>
         </div>
         <dl id="profiles-current-config" class="meta-grid compact-meta"></dl>
       </section>
@@ -45,7 +51,7 @@
             <h2>已保存方案</h2>
             <span id="profiles-count" class="muted">0 条</span>
           </div>
-          <div id="profiles-list-feedback" class="feedback muted">正在加载方案列表…</div>
+          <div id="profiles-list-feedback" class="feedback muted">正在加载方案列表...</div>
           <div id="profiles-list" class="profile-list"></div>
         </section>
 
@@ -60,58 +66,59 @@
           <form id="profile-form" class="profile-form">
             <label class="field">
               <span>名称</span>
-              <input id="profile-name-input" name="name" type="text" placeholder="例如：Work" />
+              <input id="profile-name-input" name="name" type="text" placeholder="例如：工作环境" />
               <div id="profile-name-error" class="field-error hidden"></div>
             </label>
 
-            <label class="field">
-              <span>Provider</span>
-              <input
-                id="profile-provider-input"
-                name="provider"
-                type="text"
-                placeholder="Custom"
-                value="Custom"
-              />
-              <div id="profile-provider-error" class="field-error hidden"></div>
-            </label>
+            <div id="codex-profile-fields" class="profile-field-group">
+              <label class="field">
+                <span>Provider</span>
+                <input id="profile-provider-input" name="provider" type="text" placeholder="Custom" />
+                <div id="profile-provider-error" class="field-error hidden"></div>
+              </label>
 
-            <label class="field">
-              <span>密钥</span>
-              <input id="profile-api-key-input" name="apiKey" type="text" placeholder="sk-..." />
-              <div id="profile-api-key-error" class="field-error hidden"></div>
-            </label>
+              <label class="field">
+                <span>密钥</span>
+                <input id="profile-api-key-input" name="apiKey" type="text" placeholder="sk-..." />
+                <div id="profile-api-key-error" class="field-error hidden"></div>
+              </label>
 
-            <label class="field">
-              <span>Base URL</span>
-              <input
-                id="profile-base-url-input"
-                name="baseUrl"
-                type="url"
-                placeholder="https://api.example.com"
-              />
-              <div id="profile-base-url-error" class="field-error hidden"></div>
-            </label>
+              <label class="field">
+                <span>Base URL</span>
+                <input id="profile-base-url-input" name="baseUrl" type="url" placeholder="https://api.example.com" />
+                <div id="profile-base-url-error" class="field-error hidden"></div>
+              </label>
 
-            <label class="field">
-              <span>Model</span>
-              <input
-                id="profile-model-input"
-                name="model"
-                type="text"
-                placeholder="gpt-5.5"
-              />
-            </label>
+              <label class="field">
+                <span>默认模型</span>
+                <input id="profile-model-input" name="model" type="text" placeholder="gpt-5.5" />
+              </label>
 
-            <label class="field">
-              <span>Reasoning Effort</span>
-              <input
-                id="profile-model-reasoning-effort-input"
-                name="modelReasoningEffort"
-                type="text"
-                placeholder="high"
-              />
-            </label>
+              <label class="field">
+                <span>推理强度</span>
+                <input id="profile-model-reasoning-effort-input" name="modelReasoningEffort" type="text" placeholder="high" />
+              </label>
+            </div>
+
+            <div id="claude-profile-fields" class="profile-field-group hidden">
+              <label class="field">
+                <span>Base URL</span>
+                <input id="claude-profile-base-url-input" name="claudeBaseUrl" type="url" placeholder="https://example.test/bedrock" />
+                <div id="claude-profile-base-url-error" class="field-error hidden"></div>
+              </label>
+
+              <label class="field">
+                <span>API Key</span>
+                <input id="claude-profile-api-key-input" name="claudeApiKey" type="text" placeholder="sk-..." />
+                <div id="claude-profile-api-key-error" class="field-error hidden"></div>
+              </label>
+
+              <label class="field">
+                <span>默认模型</span>
+                <input id="claude-profile-default-model-input" name="defaultModel" type="text" placeholder="us.anthropic.claude-haiku-4-5-20251001-v1:0" />
+                <div id="claude-profile-default-model-error" class="field-error hidden"></div>
+              </label>
+            </div>
 
             <div class="form-actions">
               <button id="save-profile-button" class="ghost-button" type="submit">
@@ -133,13 +140,11 @@
       <form method="dialog" class="dialog-card">
         <h2>删除方案</h2>
         <p>
-          这只会删除保存的方案记录，不会回滚当前已经生效的 Codex 配置。
+          这只会删除保存的方案记录，不会回滚当前已经生效的配置。
         </p>
         <p id="profile-delete-dialog-text" class="muted"></p>
         <div class="dialog-actions">
-          <button type="button" class="ghost-button" id="cancel-profile-delete-button">
-            取消
-          </button>
+          <button type="button" class="ghost-button" id="cancel-profile-delete-button">取消</button>
           <button type="button" class="danger-button" id="confirm-profile-delete-button">
             确认删除
           </button>
