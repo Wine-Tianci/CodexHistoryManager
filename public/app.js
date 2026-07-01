@@ -6,6 +6,7 @@
     AI_TYPE_STORAGE_KEYS,
     buildHistoryApiPaths,
     buildSessionIdMetaValueHtml,
+    buildSessionTitlePreview,
     buildTimelineItemHtml,
     buildUsageMetaEntries,
     buildWorkspaceTrackWidths,
@@ -216,7 +217,7 @@
                 `
                 : `
                   <button class="title-button" type="button" data-open-id="${safeSessionId}" data-edit-id="${safeSessionId}">
-                    ${escapeHtml(truncateTitle(title, 42))}
+                    ${escapeHtml(buildSessionTitlePreview(title, 42))}
                   </button>
                   <div class="inline-note">${rowNote}</div>
                 `
@@ -406,7 +407,8 @@
 
     const session = state.sessions.find((item) => item.sessionId === detail.sessionId);
     const title = detail.meta?.title || session?.title || detail.sessionId;
-    elements.detailTitle.textContent = title;
+    elements.detailTitle.textContent = buildSessionTitlePreview(title, 140);
+    elements.detailTitle.title = title;
     elements.detailSubtitle.textContent =
       state.aiType === "codex"
         ? `${detail.timeline?.length || 0} 条对话摘要`
@@ -509,6 +511,7 @@
     state.activeSessionId = null;
     state.activeDetail = null;
     elements.detailTitle.textContent = "会话详情";
+    elements.detailTitle.removeAttribute("title");
     elements.detailSubtitle.textContent = "选择左侧会话以查看详情。";
     elements.detailFeedback.textContent = message;
     elements.detailFeedback.classList.remove("hidden");
@@ -650,15 +653,6 @@
     const hours = String(date.getHours()).padStart(2, "0");
     const minutes = String(date.getMinutes()).padStart(2, "0");
     return `${year}/${month}/${day} ${hours}:${minutes}`;
-  }
-
-  function truncateTitle(value, maxLength) {
-    const text = String(value || "");
-    const chars = Array.from(text);
-    if (chars.length <= maxLength) {
-      return text;
-    }
-    return `${chars.slice(0, maxLength).join("")}...`;
   }
 
   function cssEscape(value) {

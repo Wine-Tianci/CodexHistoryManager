@@ -163,6 +163,21 @@
     return new Intl.NumberFormat("en-US").format(value);
   }
 
+  function buildSessionTitlePreview(value, maxLength = 120) {
+    const text = String(value || "").replace(/\s+/g, " ").trim();
+    const chars = Array.from(text);
+    const requestedLength = Number(maxLength);
+    const limit = Number.isFinite(requestedLength)
+      ? Math.max(1, Math.floor(requestedLength))
+      : 120;
+
+    if (chars.length <= limit) {
+      return text;
+    }
+
+    return `${chars.slice(0, limit).join("")}...`;
+  }
+
   function buildUsageMetaEntries(usage) {
     return [
       ["Total Tokens", formatTokenCount(usage?.totalTokens)],
@@ -432,6 +447,7 @@
     buildProfileApiPaths,
     buildProfileMetaEntries,
     buildSessionIdMetaValueHtml,
+    buildSessionTitlePreview,
     buildUsageMetaEntries,
     buildWorkspaceTrackWidths,
     buildTimelineItemHtml,

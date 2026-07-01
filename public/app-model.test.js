@@ -12,6 +12,7 @@ const {
   buildProfileMetaEntries,
   buildUsageMetaEntries,
   buildSessionIdMetaValueHtml,
+  buildSessionTitlePreview,
   buildWorkspaceTrackWidths,
   buildTimelineItemHtml,
   clampWorkspaceSplit,
@@ -156,6 +157,21 @@ run("buildSessionIdMetaValueHtml renders a resume action beside the session id",
     new RegExp(`data-resume-session-id="${sessionId}"`),
   );
   assert.match(html, /切换到当前会话/);
+});
+
+run("buildSessionTitlePreview collapses multiline long first-message titles", () => {
+  const title = [
+    "352: error log payload with enough content to exceed the preview limit",
+    "353: another log line that should not create a tall heading",
+    "354: final log line",
+  ].join("\n");
+
+  const preview = buildSessionTitlePreview(title, 64);
+
+  assert.equal(preview.length, 67);
+  assert.equal(preview.endsWith("..."), true);
+  assert.doesNotMatch(preview, /\r|\n/);
+  assert.match(preview, /^352: error log payload/);
 });
 
 run("formatTokenCount adds separators and falls back to dash", () => {
