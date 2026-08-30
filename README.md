@@ -81,6 +81,8 @@ C:\Users\<当前用户>\.claude\projects\**\*.jsonl
 - Claude 模式使用 `/api/claude/profiles`。
 - 方案卡片和当前配置摘要会隐藏密钥中间部分。
 - 切换 AI 类型时会重新加载对应类型的方案列表、当前配置和表单字段。
+- 进入方案管理页或点击“刷新”时，会重新读取 Codex `config.toml` 和 `auth.json`，只用于显示当前生效配置，不会写回方案文件。
+- 在当前正在使用的 Codex 方案里点击“保存方案”时，如果 live `config.toml` 的顶层 `model` 已变化，会把这个 `model` 同步回方案记录。
 - 方案管理会在浏览器本地记住上一次选择的 AI 类型，使用 `localStorage` key `ai-agent-deck.profiles.aiType`。
 
 ### Codex 方案字段

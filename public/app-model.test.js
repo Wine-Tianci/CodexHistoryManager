@@ -554,12 +554,14 @@ run("buildProfileApiPaths selects the correct profile API family", () => {
   assert.deepEqual(buildProfileApiPaths("codex", "profile 1"), {
     list: "/api/profiles",
     detail: "/api/profiles/profile%201",
+    copy: "/api/profiles/profile%201/copy",
     activate: "/api/profiles/profile%201/activate",
     delete: "/api/profiles/profile%201",
   });
   assert.deepEqual(buildProfileApiPaths("claude", "profile 1"), {
     list: "/api/claude/profiles",
     detail: "/api/claude/profiles/profile%201",
+    copy: "/api/claude/profiles/profile%201/copy",
     activate: "/api/claude/profiles/profile%201/activate",
     delete: "/api/claude/profiles/profile%201",
   });

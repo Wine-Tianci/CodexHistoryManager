@@ -79,6 +79,7 @@
         "claude-profile-default-model-error",
       ),
       saveButton: document.getElementById("save-profile-button"),
+      copyButton: document.getElementById("copy-profile-button"),
       activateButton: document.getElementById("activate-profile-button"),
       deleteButton: document.getElementById("delete-profile-button"),
       deleteDialog: document.getElementById("profile-delete-dialog"),
@@ -93,6 +94,7 @@
     elements.refreshButton.addEventListener("click", () => loadProfiles(state.selectedProfileId));
     elements.newProfileButton.addEventListener("click", startCreatingProfile);
     elements.form.addEventListener("submit", saveProfile);
+    elements.copyButton.addEventListener("click", copyProfile);
     elements.activateButton.addEventListener("click", activateProfile);
     elements.deleteButton.addEventListener("click", openDeleteDialog);
     elements.cancelDeleteButton.addEventListener("click", closeDeleteDialog);
@@ -246,6 +248,26 @@
       await loadProfiles(payload.id);
     } catch (error) {
       alert(`保存失败：${error.message}`);
+    } finally {
+      state.saving = false;
+      renderForm();
+    }
+  }
+
+  async function copyProfile() {
+    if (!state.selectedProfileId) {
+      return;
+    }
+
+    state.saving = true;
+    renderForm();
+    try {
+      const payload = await api(buildProfileApiPaths(state.aiType, state.selectedProfileId).copy, {
+        method: "POST",
+      });
+      await loadProfiles(payload.id);
+    } catch (error) {
+      alert(`复制失败：${error.message}`);
     } finally {
       state.saving = false;
       renderForm();
@@ -426,6 +448,7 @@
 
     elements.saveButton.textContent = isEditMode ? "保存修改" : "新增方案";
     elements.saveButton.disabled = state.saving || state.activating || state.deleting;
+    elements.copyButton.disabled = !isEditMode || state.saving || state.activating || state.deleting;
     elements.activateButton.disabled =
       !isEditMode || state.saving || state.activating || state.deleting;
     elements.activateButton.textContent = state.activating ? "切换中..." : "切换为当前方案";

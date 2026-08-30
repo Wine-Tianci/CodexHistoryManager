@@ -138,6 +138,7 @@
     return {
       list: basePath,
       detail: `${basePath}/${encodedProfileId}`,
+      copy: `${basePath}/${encodedProfileId}/copy`,
       activate: `${basePath}/${encodedProfileId}/activate`,
       delete: `${basePath}/${encodedProfileId}`,
     };
